@@ -22,8 +22,6 @@
 
 **Операционная система**: Windows XP - 11
 
-[TOC]
-
 ### Флажок раскладки и его настройка
 
 <img src="ReadMe.assets/ReadMe1.gif" alt="ReadMe2" style="zoom:67%;" />
