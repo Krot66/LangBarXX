@@ -1,6 +1,6 @@
 ﻿MsgBoxEx(Text, Title := "", Buttons := "", Icon := "", ByRef CheckText := "", Styles := "", Owner := "", Timeout := "", FontOptions := "", FontName := "", BGColor := "", Callback := "") {
     Static hWnd, y2, p, px, pw, c, cw, cy, ch, f, o, gL, hBtn, lb, DHW, ww, Off, k, v, RetVal
-    Static Sound := {2: "*48", 4: "*16", 5: "*64"}
+    ;Static Sound := {2: "*48", 4: "*16", 5: "*64"}
 
     Gui New, hWndhWnd LabelMsgBoxEx -0xA0000
     Gui % (Owner) ? "+Owner" . Owner : ""

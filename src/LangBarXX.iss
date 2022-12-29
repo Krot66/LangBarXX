@@ -9,7 +9,7 @@
 [Setup]
 ; Примечание: Значение AppId идентифицирует это приложение.
 ; Не используйте одно и тоже значение в разных установках.
-; (Для генерации значения GUID, нажмите Инструменты | Генерация GUID.)
+; (Для генерации значения GUID, нажмите Инструменты | Генерация GUID)
 AppId={{E64D3F85-C325-4133-9394-B3D65E1B1710}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -43,6 +43,7 @@ Source: "LangBarXX.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "LB_WatchDog.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "portable.dat"; DestDir: "{app}"; Check: IsTaskSelected('portablemode');Flags: ignoreversion
 Source: "ReadMe.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Changelog.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{app}\flags\*"; DestDir: "{app}\flags_old"; Flags: external skipifsourcedoesntexist
 Source: "{app}\masks\*"; DestDir: "{app}\masks_old"; Flags: external skipifsourcedoesntexist
 Source: "flags\*"; DestDir: "{app}\flags"; Flags: ignoreversion
@@ -51,7 +52,7 @@ Source: "ReadMe.assets\*"; DestDir: "{app}\ReadMe.assets"; Flags: ignoreversion
 Source: "{src}\flags\*"; DestDir: "{app}\flags"; Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{src}\masks\*"; DestDir: "{app}\masks"; Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{src}\LangBarXX.ini"; DestDir: "{userappdata}\LangBarXX"; Check: not IsTaskSelected('portablemode'); Flags: external skipifsourcedoesntexist ignoreversion
-Source: "{src}\LangBarXX.ini"; DestDir: "{app}\LangBarXX"; Check: IsTaskSelected('portablemode'); Flags: external skipifsourcedoesntexist ignoreversion
+Source: "{src}\LangBarXX.ini"; DestDir: "{app}"; Check: IsTaskSelected('portablemode'); Flags: external skipifsourcedoesntexist ignoreversion
 ; Примечание: Не используйте "Flags: ignoreversion" для системных файлов
 
 [Icons]

@@ -4,7 +4,6 @@
 
 	StringReplace, x, x, а , a , All
 	StringReplace, x, x, б , b , All
-	StringReplace, x, x, с , c , All
 	StringReplace, x, x, в , v , All
 	StringReplace, x, x, г , g , All
 	StringReplace, x, x, д , d , All
@@ -39,7 +38,6 @@
 
 	StringReplace, x, x, А , A , All
 	StringReplace, x, x, Б , B , All
-	StringReplace, x, x, С , C , All
 	StringReplace, x, x, В , V , All
 	StringReplace, x, x, Г , G , All
 	StringReplace, x, x, Д , D , All

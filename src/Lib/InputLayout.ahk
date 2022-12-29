@@ -9,6 +9,14 @@
 		DllCall("GetConsoleKeyboardLayoutName", Str, langID),
 		DllCall("FreeConsole")
 	}
+    Else If (Class=="ApplicationFrameWindow") {
+        SetFormat Integer, H
+        ControlGetFocus Focused, A
+        ControlGet CtrlID, Hwnd,, % Focused, A
+        ThreadID := DllCall("GetWindowThreadProcessId", "Ptr", CtrlID, "Ptr", 0)
+        LangID := DllCall("GetKeyboardLayout", "UInt", ThreadID, "Ptr")
+        SetFormat Integer, D
+    }
 	Else {
 		SetFormat Integer, H
 		ThreadID:=DllCall("GetWindowThreadProcessId", UInt, hWnd, UInt, 0)
