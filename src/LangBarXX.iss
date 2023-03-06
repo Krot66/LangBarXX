@@ -3,7 +3,7 @@
 
 #define MyAppName "LangBar++"
 #define MyAppVersion GetFileVersion("LangBarXX.exe")
-;#define MyAppPublisher "Horns'n'Hoofs Inc., Minsk, 2022"
+;#define MyAppPublisher
 #define MyAppURL "https://github.com/Krot66/LangBarXX"
 
 [Setup]
@@ -28,7 +28,7 @@ PrivilegesRequired=none
 ArchitecturesInstallIn64BitMode=x64 ia64
 WizardImageFile=_Installer\WizModernImage-IS.bmp
 WizardSmallImageFile=_Installer\WizModernSmallImage-IS.bmp
-SetupIconFile=_Installer\LB.ico
+SetupIconFile=_Installer\Install.ico
 
 [Languages]
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
@@ -43,6 +43,7 @@ Source: "LangBarXX.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "LB_WatchDog.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "portable.dat"; DestDir: "{app}"; Check: IsTaskSelected('portablemode');Flags: ignoreversion
 Source: "ReadMe.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "ReadMe.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "Changelog.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{app}\flags\*"; DestDir: "{app}\flags_old"; Flags: external skipifsourcedoesntexist
 Source: "{app}\masks\*"; DestDir: "{app}\masks_old"; Flags: external skipifsourcedoesntexist
@@ -53,13 +54,14 @@ Source: "{src}\flags\*"; DestDir: "{app}\flags"; Flags: external skipifsourcedoe
 Source: "{src}\masks\*"; DestDir: "{app}\masks"; Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{src}\LangBarXX.ini"; DestDir: "{userappdata}\LangBarXX"; Check: not IsTaskSelected('portablemode'); Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{src}\LangBarXX.ini"; DestDir: "{app}"; Check: IsTaskSelected('portablemode'); Flags: external skipifsourcedoesntexist ignoreversion
+; Source: "_Installer\uninstall.ico"; DestDir: "{app}"; Check: not IsTaskSelected('portablemode'); Flags: ignoreversion
 ; Примечание: Не используйте "Flags: ignoreversion" для системных файлов
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\LangBarXX.exe"; Check: not IsTaskSelected('portablemode') and not Is64BitInstallMode
 Name: "{group}\{#MyAppName}"; Filename: "{app}\LangBarXX64.exe"; Check: not IsTaskSelected('portablemode') and Is64BitInstallMode
 Name: "{group}\ReadMe"; Filename: "{app}\ReadMe.html"; Check: not IsTaskSelected('portablemode')
-Name: "{group}\Удаление"; Filename: "{uninstallexe}"; Check: not IsTaskSelected('portablemode')
+Name: "{group}\Uninstall"; Filename: "{uninstallexe}"; Check: not IsTaskSelected('portablemode')
 Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\LangBarXX.exe"; Tasks: desktopicon; Check: not IsTaskSelected('portablemode') and not Is64BitInstallMode
 Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\LangBarXX64.exe"; Tasks: desktopicon; Check: not IsTaskSelected('portablemode') and Is64BitInstallMode
 
