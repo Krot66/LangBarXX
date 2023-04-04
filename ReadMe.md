@@ -1,5 +1,3 @@
-[GitHub](https://github.com/Krot66/LangBarXX)
-
 [Ветка форума Ru.Board](http://forum.ru-board.com/topic.cgi?forum=5&topic=50256#1  "28.06.2019  21:32")
 
 ## LangBar++- *индикация раскладки у курсора и ее исправление в набранном тексте*
