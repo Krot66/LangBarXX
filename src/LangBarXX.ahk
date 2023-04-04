@@ -9,19 +9,19 @@ CoordMode Tooltip
 CoordMode Mouse
 SetWorkingDir %A_ScriptDir%
 SetTitleMatchMode 2
-SetTitleMatchMode Slow    
+SetTitleMatchMode Slow
 Process Priority,, A
 
-version:="1.2.0"
+version:="1.2.4"
 
-/* 
+/*
 Использованы:
 Начальный код отображения флажка Irbis http://forum.script-coding.com/viewtopic.php?id=10392&p=3
 Gdip library by Tic
 Acc Standard Library by Sean
 */
 
-pict:="src\Drag.ico" ; Подгружаемые изображения
+pict:="Drag.ico" ; Подгружаемые изображения при нескомпилированном файле
 cur:="Drag.cur"
 FileInstall Drag.cur, masks\Drag.cur, 1
 
@@ -30,7 +30,7 @@ Process Exist, LangBarXX.exe
 lb:=ErrorLevel
 Process Exist, LangBarXX64.exe
 lb64:=ErrorLevel
-If (lb && lb!=PID) || (lb64 && lb64!=PID) {
+If ((lb && lb!=PID) || (lb64 && lb64!=PID)) && FileExist("portable.dat") {
     MsgBox, 16, , Запущена другая копия программы!, 1.5
     ExitApp
 }
@@ -62,11 +62,11 @@ If !FileExist("portable.dat") {
 cfg_exist:=FileExist(cfg) ? 1 : 0
 IniDelete % cfg, Main
 
-IniRead aspect, % cfg, Tray, Aspect, 1 
+IniRead aspect, % cfg, Tray, Aspect, 1
 IniRead icon_shift, % cfg, Tray, Icon_Shift, 1
 IniRead numlock_icon, % cfg, Tray, NumLock_Icon, 1
 IniRead scrolllock_icon, % cfg, Tray, ScrollLock_Icon, 1
-IniRead set_lang, % cfg, Tray, Set_Lang, 0 
+IniRead set_lang, % cfg, Tray, Set_Lang, 1
 
 IniRead capslock, % cfg, Keys, CapsLock, 1
 IniRead scrolllock, % cfg, Keys, ScrollLock, 1
@@ -76,20 +76,23 @@ IniRead flag, % cfg, Flag, Flag, 1
 IniRead dx, % cfg, Flag, DX, 16
 IniRead dy, % cfg, Flag, DY, -12
 IniRead width, % cfg, Flag, Width, 22
-IniRead transp, % cfg, Flag, Transp, 90
+IniRead transp, % cfg, Flag, Transp, 100
 
 IniRead indicator, % cfg, Indicator, Indicator, 0
 IniRead dx_in, % cfg, Indicator, DX_In, 50
 IniRead dy_in, % cfg, Indicator, DY_In, 50
-IniRead width_in, % cfg, Indicator, Width_In, 3
+IniRead width_in, % cfg, Indicator, Width_In, 2
 IniRead transp_in, % cfg, Indicator, Transp_in, 90
 IniRead numlock_icon_in, % cfg, Indicator, NumLock_Icon_In, 1
 IniRead scrolllock_icon_in, % cfg, Indicator, ScrollLock_Icon_In, 1
-   
+
 IniRead pause, % cfg, Layouts, Pause, % "0x0409|0x0419"
 IniRead shift_bs, % cfg, Layouts, Shift_BS, % "0x0409|0x0419"
 IniRead pause_shift_bs, % cfg, Layouts, Pause_Shift_BS, 0
-;IniRead ctrl_p, % cfg, Layouts, Ctrl_P, 0
+IniRead lctrl, % cfg, Layouts, LCtrl, % " "
+IniRead rctrl, % cfg, Layouts, RCtrl, % " "
+IniRead lshift, % cfg, Layouts, LShift, % " "
+IniRead rshift, % cfg, Layouts, RShift, % " "
 IniRead digit_keys, % cfg, Layouts, Digit_Keys, 0
 IniRead f_keys, % cfg, Layouts, F_Keys, 0
 
@@ -97,7 +100,7 @@ IniRead wordint, % cfg, Select, WordInt, 750
 IniRead wait, % cfg, Select, Wait, 250
 IniRead symbint, % cfg, Select, SymbInt, 280
 IniRead symbsel, % cfg, Select, SymbSel, 0
-IniRead startonly, % cfg, Select, StartOnly, 0    
+IniRead startonly, % cfg, Select, StartOnly, 0
 IniRead enter_on, % cfg, Select, Enter_On, 0
 IniRead tab_on, % cfg, Select, Tab_On, 0
 
@@ -106,7 +109,7 @@ If cfg_exist {
     Loop {
         IniRead a, % cfg, Apps, app%A_Index%, % " "
         If !a
-            Break        
+            Break
         apps.Push(StrSplit(a, ","))
     }
 }
@@ -126,19 +129,19 @@ Else {
 }
 
 SetTimer Settings, 10000
-If numlock_on 
+If numlock_on
     SetNumLockState On
 
 Menu Tray, NoStandard
 Menu Tray, Tip, LangBar++
-Menu Tray, Add, Смена раскладки, LangBar 
+Menu Tray, Add, Смена раскладки, LangBar
 Menu Tray, Default, 1&
 Menu Tray, Add, Флажок (Shift+Shift), FlagToggle
 Menu Tray, Add, Раскладки и флажки, LayoutsAndFlags
 Menu Tray, Add, Настройка флажка, FlagSettings
 Menu Indicator, Add, Включен (Ctrl+Shift+Shift), IndicatorToggle
 Menu Indicator, Add
-Menu Indicator, Add, Настройки положения, IndicatorSettings
+Menu Indicator, Add, Настройки индикатора, IndicatorSettings
 Menu Indicator, Add, Правила приложений, Rules
 Menu Tray, Add, Индикатор раскладки, :Indicator
 Menu Tray, Add
@@ -187,7 +190,7 @@ Menu Tray, Add, Автозапуск, :Autorun
 
 Menu Help, Add, Справка, Help
 Menu Help, Add, Что нового?, Changelog
-Menu Help, Add, 
+Menu Help, Add,
 Menu Help, Add, О программе, About
 Menu Tray, Add, Помощь, :Help
 Menu Tray, Add
@@ -201,7 +204,7 @@ If A_IsCompiled {
     Menu, Tray, Icon, 3&, % A_ScriptFullPath, 2
     Menu, Tray, Icon, 7&, % A_ScriptFullPath, 3
     Menu, Tray, Icon, 8&, % A_ScriptFullPath, 3
-    Menu, Tray, Icon, 9&, % A_ScriptFullPath, 3    
+    Menu, Tray, Icon, 9&, % A_ScriptFullPath, 3
     Menu, Tray, Icon, 14&, % A_ScriptFullPath, 4
     Menu, Tray, Icon, 18&, % A_ScriptFullPath, 5
     Menu, Tray, Icon, 19&, % A_ScriptFullPath, 6
@@ -242,7 +245,7 @@ Menu Autorun, % (lb_autorun="""" A_ScriptFullPath """") ? "Check" : "Uncheck", 1
 
 If not capslock in 1,4
     SetCapsLockState AlwaysOff
-If numlock_on 
+If numlock_on
     SetNumLockState On
 If !scrolllock
     SetScrollLockState AlwaysOff
@@ -274,7 +277,7 @@ If !tab_on
     endkeys.="{Tab}"
 If !enter_on
     endkeys.="{Enter}{NumpadEnter}"
-    
+
 If digit_keys {
     Loop % lang_count {
         Hotkey % ">!" A_Index, SetInputLang
@@ -308,7 +311,7 @@ KeyArray(hook, vk) {
     Global ks
     wheel:=0
     If (GetKeyName(vk_code:=Format("vk{:x}", vk))~="Backspace") || (GetKeyState("LControl", "P")) || (GetKeyState("LAlt", "P")) || (GetKeyState("RAlt", "P")) || (GetKeyState("AltGr", "P")) || (GetKeyState("LWin", "P")) || (GetKeyState("RWin", "P"))
-        ks.Pop() 
+        ks.Pop()
     Else
         ks.Push([(GetKeyState("Shift", "P") ? "+" : "") "{" vk_code "}", GetKeyState("CapsLock", "T")])
     ;Tooltip % ks.Length(),0 ,0, 7
@@ -316,9 +319,10 @@ KeyArray(hook, vk) {
 
 Select:
     If WinActive("ahk_class VMPlayerFrame") || WinActive("ahk_exe VirtualBox.exe") || ((A_PriorHotkey=A_ThisHotkey) && (A_TimeSincePriorHotkey<50))
-        Return 
+        Return
     hkey:=A_ThisHotkey, button:=RegExReplace(hkey,"^[\^\$\+>]+")
-    Hotkey % "*" button, Return, On
+    If !(button~="(RButton|MButton)")
+        Hotkey % "*" button, Return, On
     lang_sel:=InputLayout(), text:=rem:=ih.Input, sel:=hand_sel:=send_bs:=per_symbol_select:=""
     ih.Stop()
     If StrLen(text) {
@@ -343,7 +347,7 @@ Select:
                     SendInput {BS down}{BS up}
                 Else
                     SendInput {Shift down}{Left down}{Left up}{Shift up}
-                Sleep 20
+                Sleep 5
             }
             If !(rem~="^\s*$") {
                 If per_symbol_select
@@ -380,14 +384,14 @@ Select:
         ClipWait 0.3
         sel:=hand_sel:=Clipboard, Clipboard:=tmp
     }
-    Hotkey % "*" button, Return, Off
-    Hotkey *BS, Return, Off
-    If !sel && (capslock!=7) { ;;;;;;;;;
+    If !sel && (capslock!=7) {
         Tooltip % "Буфер пуст -`nвыделите текст!", % x-40, % y-50
         SetTimer ToolTip, -1500
         Exit
     }
     Sleep 100
+    Hotkey % "*" button, Return, Off
+    Hotkey *BS, Return, Off
     Return
 
 Convert:
@@ -413,7 +417,7 @@ ReConvert:
             Exit
         }
         convert.="{" vk "}"
-        out.Push([((vk~="^vk1\w\w$") ? "+" : "") "{" RegExReplace(vk,"vk\K\d(?=\w\w)") "}", 0])       
+        out.Push([((vk~="^vk1\w\w$") ? "+" : "") "{" RegExReplace(vk,"vk\K\d(?=\w\w)") "}", 0])
     }
     Return
 
@@ -476,23 +480,20 @@ InvertCase(t) {
     Gosub SetInputLang
     SendText(Translit(sel))
     Return
-    
+
 
 #If (InputLayout()~="(" pause ")") && pause
 Pause::Goto Translate
 
 OnFlag(hwnd) {
-    DetectHiddenWindows Off
-    MouseGetPos,,, win
-    Return (win=hwnd) ? 1 : 0
+    MouseGetPos,,, win, ctrl
+    Return (win && (win=hwnd) && (ctrl~="Static")) ? 1 : 0
 }
 
-#If OnFlag(FlagHwnd) && flag
-RButton::
-If (InputLayout()~="(" pause ")") && pause
-    Goto Translate
-Return
+#If OnFlag(FlagHwnd) && (InputLayout()~="(" pause ")") && pause
+RButton::Goto Translate
 
+#If OnFlag(FlagHwnd)
 MButton::
     Gosub Select
     SendText(InvertCase(sel))
@@ -528,16 +529,16 @@ SetInputLang:
         Loop % lang_count {
             curr_lang:=A_Index
             If (lang_start=lang_array[A_Index,1])
-                break    
+                break
         }
         target:=(curr_lang<lang_count) ? lang_array[curr_lang+1, 1] : lang_array[1, 1]
         ;ToolTip % lang_start " " curr_lang "`n" target, 1000, 500
         ;SetTimer ToolTip, -2000
     }
-    If (A_ThisHotkey~="!F?\d$") 
+    If (A_ThisHotkey~="!F?\d$")
         target:=lang_array[SubStr(A_ThisHotkey, 0),1]
     Else If (hkey~="F?\d$")
-        target:=lang_array[SubStr(hkey, 0),1] 
+        target:=lang_array[SubStr(hkey, 0),1]
     Else If hkey in RButton,Pause,CapsLock
         target:=(lang_start=_pause[1]) ? _pause[2] : _pause[1]
     Else If (hkey="+BS")
@@ -545,6 +546,30 @@ SetInputLang:
 ResetLang:
     SetInputLang(set_lang, target)
     target:=""
+    Return
+
+#If lshift
+LShift up::
+    ih.Stop()
+    SetInputLang(set_lang, lshift)
+    Return
+
+#If rshift
+RShift up::
+    ih.Stop()
+    SetInputLang(set_lang, rshift)
+    Return
+
+#If lctrl
+LCtrl up::
+    ih.Stop()
+    SetInputLang(set_lang, lctrl)
+    Return
+
+#If rctrl
+RCtrl up::
+    ih.Stop()
+    SetInputLang(set_lang, rctrl)
     Return
 
 #If (capslock=-1)
@@ -563,40 +588,36 @@ CapsLock::SetInputLang(set_lang)
         Return
     Gosub Select
     SetCapsLockState Off
-    SendText(InvertCase(sel))   
+    SendText(InvertCase(sel))
     Return
 
 #If (capslock=5)
-CapsLock:: 
+CapsLock::
     Gosub Select
     SendText(InvertCase(sel))
     Return
 #If
 
-#If !OnTaskBar() && !OnFlag(FlagHwnd)   
+#If !OnTaskBar() && !OnFlag(FlagHwnd)
 ~*LButton::
-    ih.Stop()
-    Sleep 100
-    wheel:=0
-    Return
-
+    wheel:=x_wheel:=y_wheel:=0    
 ~*MButton::
     ih.Stop()
     Return
-#If
 
 ~*WheelUp::
 ~*WheelDown::
 ~*WheelRight::
 ~*WheelLeft::
     ih.Stop()
-    If !wheel && (A_PriorHotkey~="Wheel") && (A_TimeSincePriorHotkey<2000) && (cl~="^(ApplicationFrameWindow|Chrome_WidgetWin_\d|MozillaWindowClass|Slimjet_WidgetWin_1)") {
+    If !wheel && (cl~="^(ApplicationFrameWindow|Chrome_WidgetWin_\d|MozillaWindowClass|Slimjet_WidgetWin_1)") {
         x_wheel:=_x, y_wheel:=_y
-        Sleep 100
         Gui Hide
         wheel:=1
-    }        
+    }
     Return
+    
+#If
 
 OnTaskBar() {
     MouseGetPos,,, win_id
@@ -712,7 +733,7 @@ Help:
     If ErrorLevel
         Run % A_WinDir "\System32\OpenWith.exe " """" A_ScriptDir "\ReadMe.html"""
     Return
-    
+
 Changelog:
     Run Changelog.txt
     Return
@@ -735,18 +756,19 @@ About:
     Gui 4:Add, Button, x60 y+24 w100 h28 g4GuiClose, OK
     Gui 4:Show,, О программе
     Return
-    
+
 4GuiClose:
     Gui 4:Destroy
     Return
 
 #If WinActive("ahk_id" Gui4 )
 Esc::Goto 4GuiClose
-#If    
-    
+#If
+
 Reload:
     Gosub Settings
-    Reload    Return
+    Reload
+    Return
 
 Exit:
     Gdip_Shutdown(pToken)
@@ -768,7 +790,7 @@ Autorun:
 LB_WatchDog:
     Process Exist, LB_WatchDog.exe
     If !ErrorLevel
-        Run % "LB_WatchDog.exe " A_ScriptName, % A_ScriptDir            
+        Run % "LB_WatchDog.exe " A_ScriptName, % A_ScriptDir
     Return
 
 Settings:
@@ -777,7 +799,7 @@ IniWrite % icon_shift, % cfg, Tray, Icon_Shift
 IniWrite % numlock_icon, % cfg, Tray, NumLock_Icon
 IniWrite % scrolllock_icon, % cfg, Tray, ScrollLock_Icon
 IniWrite % set_lang, % cfg, Tray, Set_Lang
-    
+
 IniWrite % capslock, % cfg, Keys, CapsLock
 IniWrite % scrolllock, % cfg, Keys, ScrollLock
 IniWrite % numlock_on, % cfg, Keys, NumLock_On
@@ -799,7 +821,10 @@ IniWrite % scrolllock_icon_in, % cfg, Indicator, ScrollLock_Icon_In
 IniWrite % pause, % cfg, Layouts, Pause
 IniWrite % shift_bs, % cfg, Layouts, Shift_BS
 IniWrite % pause_shift_bs, % cfg, Layouts, Pause_Shift_BS
-;IniWrite % ctrl_p, % cfg, Layouts, Ctrl_P
+IniWrite % lctrl, % cfg, Layouts, LCtrl
+IniWrite % rctrl, % cfg, Layouts, RCtrl
+IniWrite % lshift, % cfg, Layouts, LShift
+IniWrite % rshift, % cfg, Layouts, RShift
 IniWrite % digit_keys, % cfg, Layouts, Digit_Keys
 IniWrite % f_keys, % cfg, Layouts, F_Keys
 
@@ -809,7 +834,7 @@ IniWrite % symbint, % cfg, Select, SymbInt
 IniWrite % symbsel, % cfg, Select, SymbSel
 IniWrite % startonly, % cfg, Select, StartOnly
 IniWrite % enter_on, % cfg, Select, Enter_On
-IniWrite % tab_on, % cfg, Select, Tab_On    
+IniWrite % tab_on, % cfg, Select, Tab_On
 Return
 
 ToolTip:
@@ -836,7 +861,7 @@ FlagToggle:
     flag:=!flag
     Menu Tray, % flag ? "Check" : "Uncheck", 2&
     Return
-       
+
 <^<+RShift::
 >^>+LShift::
     KeyWait % RegExReplace(A_ThisHotkey, "^.+\+"), T0.8
@@ -857,7 +882,7 @@ IndicatorToggle:
         Goto Indicator
     Return
 
-~#Space up:: ; Space up::   
+~#Space up:: ; Space up::
 ~<^LShift up::
 ~>^RShift up::
 ~!Shift up::
@@ -871,14 +896,14 @@ IndicatorToggle:
     SetTimer Flag, On
     Return
 
-#If OnFlag(FlagHwnd) && flag
+#If OnFlag(FlagHwnd)
 LButton::
     ih.Stop()
     Goto SetInputLang
 
 +WheelUp::
     If (width<64)
-        width+=2, mess:="Размер`n" width "x" width*3//4 " px"    
+        width+=2, mess:="Размер`n" width "x" width*3//4 " px"
 Pos:
     If WinActive("ahk_id" Gui2) {
         GuiControl Focus, Edit1
@@ -893,17 +918,17 @@ Pos:
 
 +WheelDown::
     If (width>16)
-        width-=2, mess:="Размер`n" width "x" width*3//4 " px"    
+        width-=2, mess:="Размер`n" width "x" width*3//4 " px"
     Goto Pos
 
 !WheelUp::
     If (transp>55)
-        transp-=10, mess:="Прозрачность " 100-transp " %"    
+        transp-=10, mess:="Прозрачность " 100-transp " %"
     Goto Pos
 
 !WheelDown::
     If (transp<95)
-        transp+=10, mess:="Прозрачность " 100-transp " %"    
+        transp+=10, mess:="Прозрачность " 100-transp " %"
     Goto Pos
 
 !MButton::
@@ -911,7 +936,7 @@ Pos:
     Goto Pos
 
 +MButton::
-    DX:=16, DY:=-12, width:=22, transp:=90, mess:="Флажок по`nумолчанию!"
+    DX:=16, DY:=-12, width:=22, transp:=100, mess:="Флажок по`nумолчанию!"
     Goto Pos
 
 +LButton::
@@ -936,7 +961,7 @@ FlagGui:
     Gui Color, 3F3F3F
     WinSet, TransColor, % "3F3F3F " transp*255//100
     Return
-    
+
 IndicatorGui:
     Gui 11:Destroy
     Gui 11:-DPIScale
@@ -949,13 +974,13 @@ IndicatorGui:
 
 CapsLockFlag:
     pToken:=Gdip_Startup()
-    pCaps:=Gdip_CreateBitmap(16, 12) 
+    pCaps:=Gdip_CreateBitmap(16, 12)
     G:=Gdip_GraphicsFromImage(pCaps)
     caps_color:="0xAA00E5E5"
     Brush:=Gdip_BrushCreateSolid(caps_color)
     Gdip_FillRectangle(G ,Brush, -1, -1, 18, 14)
-    Gdip_DeleteBrush(Brush)       
-    Gdip_DrawImage(G, pCaps, 0, 0, 16, 12, 0, 0, 16, 12)    
+    Gdip_DeleteBrush(Brush)
+    Gdip_DrawImage(G, pCaps, 0, 0, 16, 12, 0, 0, 16, 12)
     CapsHandle:=Gdip_CreateHBITMAPFromBitmap(pCaps)
     Gdip_DeleteGraphics(G)
     Return
@@ -967,7 +992,7 @@ TrayIcon:
     If upd
         Goto Indicator
     If !(lang:=InputLayout())
-        lang:=lang_old    
+        lang:=lang_old
     Loop % lang_array.Length()
         If (lang=lang_array[A_Index, 1])
             flag_png:=lang_array[A_Index, 3]
@@ -989,39 +1014,39 @@ TrayIcon:
         hf2:=!aspect ? size*2//3 : ((aspect=1) ? size*3//4 : size*4//5)
         shift:=(size-hf2)//2
         If (num && numlock_icon) || (scr && scrolllock_icon)
-            shift:=(icon_shift=0) ? (size-hf2)//2 : ((icon_shift=1) ? size-hf2 : 0)            
+            shift:=(icon_shift=0) ? (size-hf2)//2 : ((icon_shift=1) ? size-hf2 : 0)
         Gdip_DrawImage(G, pFlag, 0, shift, size, hf2, 0, 0, wf, hf)
         If num && numlock_icon
             Gdip_DrawImage(G, pNumLock, 0, 0, size, size, 0, 0, w_numlock, h_numlock)
         If scr && scrolllock_icon
             Gdip_DrawImage(G, pScrollLock, 0, 0, size, size, 0, 0, w_scrolllock, h_scrolllock)
-            
+
         DllCall("DestroyIcon", "ptr", IconHandle)
         IconHandle:=Gdip_CreateHICONFromBitmap(pMem)
-        
+
         Gdip_DisposeImage(pFlag)
         Gdip_DisposeImage(pNumLock)
         Gdip_DisposeImage(pScrollLock)
-        Gdip_DeleteGraphics(G)               
+        Gdip_DeleteGraphics(G)
         Menu Tray, Icon, hicon:*%IconHandle%
         lang_old:=lang, num_old:=num, scr_old:=scr
     }
     c++
-      
+
 Indicator:
     WinGet pn, ProcessName, A
     WinGetClass cl, A
     If (cl~="(Shell_TrayWnd|WorkerW|Progman)") {
         Gui 11:Hide
         Return
-    }        
+    }
     app_state:=-1, last_rule:=""
     Loop % apps.Length() {
         If WinExist("ahk_hwnd" Gui6) || !apps[A_Index, 1]
             continue
         an:=(apps[A_Index, 3]="*.*") ? "" : RegExReplace(apps[A_Index, 3], "\*", "[\w -_]*")
         If (an && (pn~="^" an "$") && (apps[A_Index, 4]=cl)) || (!an && cl && (apps[A_Index, 4]=cl)) {
-            app_state:=apps[A_Index, 2], last_rule:=A_Index                
+            app_state:=apps[A_Index, 2], last_rule:=A_Index
             Break
         }
     }
@@ -1035,7 +1060,7 @@ Indicator:
             mn:=(w_in>60) ? 2 : 1 ; Величина полей
             pFlag:=Gdip_CreateBitmapFromFile(flag_png)
             Gdip_GetImageDimensions(pFlag, wf, hf)
-            
+
             pNumLock:=(numlock_icon_in && (scrolllock_icon_in && scrolllock)) ? Gdip_CreateBitmapFromFile("masks\NumLock.png") : Gdip_CreateBitmapFromFile("masks\NumScroll.png")
             pScrollLock:=(numlock_icon_in && (scrolllock_icon_in && scrolllock)) ? Gdip_CreateBitmapFromFile("masks\ScrollLock.png") : Gdip_CreateBitmapFromFile("masks\NumScroll.png")
 
@@ -1063,16 +1088,16 @@ Indicator:
             Gdip_DeleteGraphics(G)
             Gui 11:Default
             GuiControl,, %IndID%, *w%w_in% *h-1 hbitmap:*%IndicatorHandle%
-            Gui 11:Show, x%x_in% y%y_in% NA 
+            Gui 11:Show, x%x_in% y%y_in% NA
             WinSet, TransColor, % "3F3F3F " transp_in*255//100, ahk_id %IndHwnd%
             WinSet Top,, ahk_id %IndHwnd%
-            If caps {            
+            If caps {
                 GuiControl,, %IndCapsID%, *w%w_in% *h-1 hbitmap:*%CapsHandle%
                 GuiControl Move, % IndCapsID, % "x" w_in//6 "y" w_in*2//5
-                GuiControl Show, % IndCapsID    
+                GuiControl Show, % IndCapsID
             }
             Else
-                GuiControl Hide, % IndCapsID            
+                GuiControl Hide, % IndCapsID
         }
     }
     Else
@@ -1085,7 +1110,7 @@ Flag:
     If cl not in Shell_TrayWnd,#32768
         lastwin:=WinExist("A")
     If lastwin && (lastwin!=lastwin_old) {
-        ih.Stop() 
+        ih.Stop()
         Gui Hide
         SetTimer Flag, Off
         SetTimer TrayIcon, Off
@@ -1100,8 +1125,12 @@ Flag:
         Return
     }
     caret:=GetCaretLocation(), _x:=caret[1], _y:=caret[2], x:=_x+DX, y:=_y+DY
-    If wheel && (_x=x_wheel) && (_y=y_wheel)    
-        Return
+    If wheel {
+        Sleep 50
+        If (_x=x_wheel) && (_y=y_wheel)
+            Return
+    }
+        
     If flag {
         If (lang && (lang!=lang_fl_old)) || (width!=width_old) || !WinExist("ahk_id" FlagHwnd){
             pFlag:=Gdip_CreateBitmapFromFile(flag_png)
@@ -1114,7 +1143,7 @@ Flag:
 
             Brush:=Gdip_BrushCreateSolid(0x33000000)
             Gdip_FillRectangle(G ,Brush, -1, -1, width+mn*2+2, fl_h+mn*2+2)
-            Gdip_DeleteBrush(Brush)       
+            Gdip_DeleteBrush(Brush)
             Gdip_DrawImage(G, pFlag, mn, mn, width, fl_h, 0, 0, wf, hf)
             DllCall("DeleteObject", "ptr", FlagHandle)
             FlagHandle:=Gdip_CreateHBITMAPFromBitmap(pBitmap)
@@ -1131,8 +1160,8 @@ Flag:
                     GuiControl,, %CapsID%, *w%width% *h-1 hbitmap:*%CapsHandle%
                     GuiControl Move, % CapsID, % "x" width//4 "y" width//5
                     GuiControl Show, % CapsID
-                    
-                }                
+
+                }
                 Else {
                     GuiControl Move, % CapsID, % "x" x "y" y
                     GuiControl Hide, % CapsID
@@ -1144,13 +1173,13 @@ Flag:
             If !WinExist("ahk_id" FlagHwnd)
                 Gosub FlagGui
             width_old:=width, lang_fl_old:=lang
-        }                     
+        }
         Else
-            Gui Hide            
+            Gui Hide
     }
     If !flag
-        Gui Hide    
-    x_old:=x, y_old:=y, lastwin_old:=lastwin
+        Gui Hide
+    lastwin_old:=lastwin
     Return
 
 LayoutsAndFlags:
@@ -1159,11 +1188,11 @@ LayoutsAndFlags:
     Gui 3:Default
     Gui 3:Color, 6DA0B8
     Gui 3:Font, s9
-    Gui 3:Add, ListView, w616 -Multi Grid R5 -LV0x10 HwndHLV NoSort ReadOnly, №|Раскладка|Код (реестр)|Файл флажка
+    Gui 3:Add, ListView, w616 -Multi Grid R4 -LV0x10 HwndHLV NoSort ReadOnly, №|Раскладка|Код (реестр)|Файл флажка
     ImageListID := IL_Create(10)
     LV_SetImageList(ImageListID)
-    Gdip_Startup()   
-    row:=0, lang_array:=[], uflag:=0
+    Gdip_Startup()
+    row:=0, lang_array:=[], uflag:=0, lang_index:=""
     RegRead lang_sort, HKEY_CURRENT_USER\Software\Microsoft\CTF\SortOrder\Language, 00000000
     Loop {
         If !lang_sort {
@@ -1172,13 +1201,13 @@ LayoutsAndFlags:
                 continue
         }
         Else
-            RegRead kl, HKEY_CURRENT_USER\Software\Microsoft\CTF\SortOrder\Language, % Format("{:08}", A_Index-1)            
+            RegRead kl, HKEY_CURRENT_USER\Software\Microsoft\CTF\SortOrder\Language, % Format("{:08}", A_Index-1)
         If !kl
             break
         RegRead lang_name, HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Control\Keyboard Layouts\%kl%, Layout Text
         lang_name:=lang_name ? lang_name : "???"
         lcode:=LangCode("0x" SubStr(kl, -3))
-        lcode:=lcode ? lcode : SubStr(kl, -3), 
+        lcode:=lcode ? lcode : SubStr(kl, -3),
         If !FileExist(kl_flag:="flags\" lcode ".png") {
             uflag++
             If FileExist("flags\" uflag ".png")
@@ -1187,18 +1216,32 @@ LayoutsAndFlags:
                 kl_flag:="flags\1.png", uflag:=0
         }
         lang_array.Push(["0x" SubStr(kl, -3), lang_name, kl_flag])
-        row++        
-        pFlag := Gdip_CreateBitmapFromFile(FileExist(kl_flag) ? kl_flag : "") 
+        lang_index.="0x" SubStr(kl, -3) ","
+        row++
+        pFlag := Gdip_CreateBitmapFromFile(FileExist(kl_flag) ? kl_flag : "")
         Gdip_GetImageDimensions(pFlag, wf, hf)
         pMem := Gdip_CreateBitmap(32, 32)
         G := Gdip_GraphicsFromImage(pMem)
         Gdip_GraphicsClear(G, 0x00000000)
         Gdip_DrawImage(G, pFlag, 0, 2, 32, 26, 0, 0, wf, hf)
         Handle:=Gdip_CreateHICONFromBitmap(pMem)
-        IL_Add(ImageListID, "HICON:*" Handle)        
+        IL_Add(ImageListID, "HICON:*" Handle)
         LV_Add("Icon" A_Index, " " row, lang_name, kl, lcode ".png")
         DllCall("DestroyIcon", "ptr", Handle)
     }
+    lang_menu:="Выкл.", lang_index:=RegExReplace(lang_index, "*$"), lshift_ind:=rshift_ind:=lctrl_ind:=rctrl_ind:=1
+    Loop % lang_array.Length() {
+        lang_menu.="|" lang_array[A_Index, 2]
+        If (lshift=lang_array[A_Index, 1])
+            lshift_ind:=A_Index+1
+        If (rshift=lang_array[A_Index, 1])
+            rshift_ind:=A_Index+1
+        If (lctrl=lang_array[A_Index, 1])
+            lctrl_ind:=A_Index+1
+        If (rctrl=lang_array[A_Index, 1])
+            rctrl_ind:=A_Index+1
+    }
+    lshift:=(lshift_ind>1) ? lshift : "", rshift:=(rshift_ind>1) ? rshift : "", lctrl:=(lctrl_ind>1) ? lctrl : "", rctrl:=(rctrl_ind>1) ? rctrl : ""
     lang_count:=row, lang_set:="Выкл.|", lc_count:=0, pause_lang:=1, shift_bs_lang:=1, lang_list:=[0]
     Loop % lang_count-1
     {
@@ -1212,40 +1255,55 @@ LayoutsAndFlags:
             If shift_bs && (lang_array[lc,1]~="(" shift_bs ")") && (lang_array[lc+A_Index,1]~="(" shift_bs ")$")
                 shift_bs_lang:=lc_count+1
         }
-    }     
+    }
     If !(A_ThisMenuItem="Раскладки и флажки")
         Return
     LV_ModifyCol(1, "AutoHdr Center")
     LV_ModifyCol(2, "220")
     LV_ModifyCol(3, "150")
     LV_ModifyCol(4, "AutoHdr")
+    Gui 3:Add, GroupBox, x16 w616 h140, Переключение раскладки
 
-    Gui 3:Add, GroupBox, w616 h180, Исправление раскладки
+    Gui 3:Add, Text, x40 yp+32, Левый Shift:
+    Gui 3:Add, DropDownList, vlshift_ind  x160 yp-4 w150 Choose%lshift_ind% AltSubmit, % lang_menu
+    Gui 3:Add, Text, x340 yp+4, Правый Shift:
+    Gui 3:Add, DropDownList, vrshift_ind  x460 yp-4 w150 Choose%rshift_ind% AltSubmit, % lang_menu
+
+    Gui 3:Add, Text, x40 yp+42, Левый Ctrl:
+    Gui 3:Add, DropDownList, vlctrl_ind  x160 yp-4 w150 Choose%lctrl_ind% AltSubmit, % lang_menu
+    Gui 3:Add, Text, x340 yp+4, Правый Ctrl:
+    Gui 3:Add, DropDownList, vrctrl_ind  x460 yp-4 w150 Choose%rctrl_ind% AltSubmit, % lang_menu
+
+    Gui 3:Add, CheckBox, x40 yp+40 vset_lang, Использовать имитацию клавишного переключения раскладки
+
+    Gui 3:Add, GroupBox, x16 w616 h140, Исправление раскладки
     Gui 3:Add, Text, x40 yp+32, Pause, CapsLock и флажок:
     Gui 3:Add, DropDownList, vpause_lang Choose%pause_lang% AltSubmit x300 yp-4 w310, % lang_set
     Gui 3:Add, Text, x40 yp+42, Сочетание Shift+Backspace:
     Gui 3:Add, DropDownList, vshift_bs_lang Choose%shift_bs_lang% AltSubmit x300 yp-4 w310, % lang_set
-    Gui 3:Add, CheckBox, x40 yp+44 vpause_shift_bs, Обменять назначение кнопок Pause и Shift+Backspace
-    ;Gui 3:Add, CheckBox, x40 yp+36 vctrl_p, Использовать сочетание правый Ctrl+P как Pause
-    Gui 3:Add, CheckBox, x40 yp+36 vset_lang, Использовать имитацию клавишного переключения раскладки
-    Gui 3:Add, GroupBox, x16 yp+44 w616 h72, Работа с множественными раскладками (+ правые Ctrl, Shift и Alt)
-    Gui 3:Add, Checkbox, x52 yp+32 vdigit_keys, % "Цифровые клавиши"
+    Gui 3:Add, CheckBox, x40 yp+40 vpause_shift_bs, Обменять назначение кнопок Pause и Shift+Backspace
+
+    Gui 3:Add, GroupBox, x16 yp+44 w616 h66, Работа с множественными раскладками (+ правые Ctrl, Shift и Alt)
+    Gui 3:Add, Checkbox, x52 yp+32 vdigit_keys, Цифровые клавиши
     Gui 3:Add, Checkbox, x300 yp0 vf_keys, % "Функциональные клавиши (F*)"
-    Gui 3:Add, Button, x40 y+32 w120 h32 gFlagsFolder, Флажки
+    Gui 3:Add, Button, x40 y+24 w120 h32 gFlagsFolder, Флажки
     Gui 3:Add, Button, x+6 yp wp hp gControlPanel, Языки (ПУ)
     Gui 3:Add, Button, x+6 yp wp hp gLayoutsAndFlags, Обновить
     Gui 3:Add, Button, x+6 yp w90 hp g3GuiClose, Cancel
     Gui 3:Add, Button, x+6 yp wp hp g3Save, OK
     GuiControl,, pause_shift_bs, % pause_shift_bs
     GuiControl,, set_lang, % set_lang
-    ;GuiControl,, ctrl_p, % ctrl_p
     GuiControl,, digit_keys, % digit_keys
     GuiControl,, f_keys, % f_keys
-    Gui 3:Show,, Раскладки и флажки    
+    Gui 3:Show,, Раскладки и флажки
     Return
 
 3Save:
     Gui 3:Submit
+    lshift:=(lshift_ind>1) ? lang_array[lshift_ind-1, 1] : ""
+    rshift:=(rshift_ind>1) ? lang_array[rshift_ind-1, 1] : ""
+    lctrl:=(lctrl_ind>1) ? lang_array[lctrl_ind-1, 1] : ""
+    rctrl:=(rctrl_ind>1) ? lang_array[rctrl_ind-1, 1] : ""
     pause:=(pause_lang>1) ? lang_list[pause_lang,1] "|" lang_list[pause_lang,2] : ""
     shift_bs:=(shift_bs_lang>1) ? lang_list[shift_bs_lang,1] "|" lang_list[shift_bs_lang,2] : ""
     Gosub Settings
@@ -1274,7 +1332,7 @@ ControlPanel:
         Run %A_WinDir%\system32\control.exe /name Microsoft.RegionalAndLanguageOptions /page /p:"keyboard"
     Return
 
-FlagSettings:    
+FlagSettings:
     Gui 2:Destroy
     Gui 2:-DPIScale +AlwaysOnTop +ToolWindow +LastFound +HwndGui2
     Gui 2:Font, s12
@@ -1320,7 +1378,7 @@ _Right:
 
 _Left:
     DX-=2, mess:="Положение`nx=" DX ", y=" DY
-    Goto Pos 
+    Goto Pos
 
 ; Настройки индикатора
 IndicatorSettings:
@@ -1346,15 +1404,15 @@ IndicatorSettings:
     Gui 5:Show, % "x" A_ScreenWidth//2+100 " y" A_ScreenHeight//2-50, Настройка индикатора
     Gosub StatusBar
     Return
-    
+
 StatusBar:
-    Gui 5:Default 
+    Gui 5:Default
     SB_SetParts(134, 116)
     SB_SetText("`tX " dx_in "%   Y " dy_in "%`t", 1, 2)
     SB_SetText("`tШирина " width_in "%`t", 2, 2)
     SB_SetText("`tПрозр-ть " 100-transp_in "%`t", 3, 2)
     Return
-    
+
 5GuiClose:
     Gui 5:Destroy
     Gosub Settings
@@ -1366,8 +1424,12 @@ Esc::Goto 5GuiClose
 ~LButton::
     MouseGetPos,,, win, ctrl
     If (win=Gui5) && (ctrl~="Button") {
+        If (ctrl="Button1")
+            Goto ^Left
         If (ctrl="Button2")
             Goto Up
+        If (ctrl="Button3")
+            Goto ^Right
         If (ctrl="Button4")
             Goto Left
         If (ctrl="Button6")
@@ -1384,8 +1446,8 @@ Right::
         dx_in:=(dx_in+1<100) ? dx_in+1 : dx_in, upd:=1
         Gosub StatusBar
         Sleep 200
-    }    
-Return    
+    }
+Return
 
 Left::
     While GetKeyState("LButton", "P") || GetKeyState("Left", "P") {
@@ -1412,14 +1474,23 @@ Down::
     Return
 
 ^Right::
-    If (width_in<10)
-        width_in+=0.2, upd:=1
-    Goto StatusBar
+    While GetKeyState("LButton", "P") || GetKeyState("Right", "P") {
+        If (width_in<10)
+            width_in+=0.1, upd:=1
+        Gosub StatusBar
+        Sleep 200
+    }
+    Return
 
 ^Left::
-    If (width_in>2)
-        width_in-=0.2, upd:=1
-    Goto StatusBar
+    While GetKeyState("LButton", "P") || GetKeyState("Left", "P") {
+        If (width_in>1)
+            width_in-=0.1, upd:=1
+        Gosub StatusBar
+        Sleep 200
+    }
+    Return
+
 
 ^Up::
     If (transp_in>54)
@@ -1432,9 +1503,9 @@ Down::
     Goto StatusBar
 
 Space::
-    width_in:=3, dx_in:=50, dy_in:=60, transp_in:=85, upd:=1
+    width_in:=2, dx_in:=50, dy_in:=60, transp_in:=85, upd:=1
     Goto StatusBar
-    
+
 ; Правила приложений
 Rules:
     Gui 6:Destroy
@@ -1456,7 +1527,7 @@ Rules:
     LV_ModifyCol(3, "200")
     LV_ModifyCol(4, "200")
     Loop % LV_GetCount()
-        LV_Modify(A_Index, "-Select")    
+        LV_Modify(A_Index, "-Select")
     LV_ModifyCol(5, (LV_GetCount()>16) ? 200:220)
     If (A_ThisHotkey~="\+(L|R)Shift$") && last_rule
         LV_Modify(last_rule, "Select Vis Focus")
@@ -1474,13 +1545,13 @@ Rules:
     }
     lr:=0
     Return
-    
+
 RuleUp:
     LVMoveRow()
     Loop % LV_GetCount()
         LV_Modify(A_Index,, A_Index)
     Return
-        
+
 RuleDown:
     LVMoveRow(false)
     Loop % LV_GetCount()
@@ -1495,9 +1566,9 @@ RuleDelete:
         LV_Delete(row)
         Loop % LV_GetCount()
             LV_Modify(A_Index,, A_Index)
-    }        
+    }
     Return
-    
+
 RulesSave:
     Gui 6:Submit, Nohide
     apps:=[]
@@ -1506,7 +1577,7 @@ RulesSave:
         r1:=(LV_GetNext(A_Index-1, "C")=A_Index) ? 1 : 0
         LV_GetText(r2, A_Index,2)
         r2:=(r2="+") ? 1 : 0
-        LV_GetText(r3, A_Index, 3)    
+        LV_GetText(r3, A_Index, 3)
         LV_GetText(r4, A_Index, 4)
         LV_GetText(r5, A_Index, 5)
         r5:=RegExReplace(r5,"(:|;|,)", " "), r5:=RegExReplace(r5, " {2,}", " ")
@@ -1517,7 +1588,7 @@ RulesSave:
 6GuiClose:
     Gui 6:Destroy
     Return
-   
+
 #If WinActive("ahk_id" Gui6)
 Esc::Goto 6GuiClose
 #If
@@ -1552,7 +1623,7 @@ Properties:
     Gui 7:Destroy
     Gui 7:Margin, 10, 6
     Gui 7:Default
-    Gui 7:+Owner6 +AlwaysOnTop +LastFound +HwndGui7
+    Gui 7:+Owner6 +AlwaysOnTop +LastFound +ToolWindow +HwndGui7
     Gui 7:Add, Edit, x10 w160 vpr_name, % pr_name
     Gui 7:Add, Text, x+5 yp+2, - имя файла
     Gui 7:Add, Button, x+10 yp-2 w60 gAll, Все!
@@ -1570,12 +1641,12 @@ Properties:
     Sleep 50
     Send {End}
     Return
-      
+
 7GuiCancel:
 7GuiClose:
     Gui 7:Destroy
     Return
-    
+
 7GuiOK:
     Gui 7:Submit
     Gui 6:Default
@@ -1584,7 +1655,7 @@ Properties:
     Else {
         If (name="*.*") && !cl {
             MsgBox, 4129, , Недопустимо создание универсального правила с пустым классом окна!, 22
-            Return       
+            Return
         }
         Loop % LV_GetCount() {
             LV_GetText(name, A_Index, 3)
@@ -1592,13 +1663,13 @@ Properties:
             If (name=pr_name) && (cl=class) {
                 MsgBox, 4129, , Дубликат правила %A_Index%!, 2
                 Return
-            }        
-        }    
+            }
+        }
         row:=LV_GetCount()+1
         LV_Add("Check", row, always_on ? "+" : "-", pr_name, class, description)
     }
     Return
-    
+
 
 #If WinActive("ahk_id" Gui7)
 Esc::Goto 7GuiCancel
@@ -1607,8 +1678,8 @@ Esc::Goto 7GuiCancel
 All:
     GuiControl,, pr_name, *.*
     Return
-        
-    
+
+
 SetSystemCursor(file) {
     CursorHandle := DllCall("LoadCursorFromFile", Str, file)
     Cursors = 32512,32513,32514,32515,32516,32640,32641,32642,32643,32644,32645,32646,32648,32649,32650,32651
@@ -1622,13 +1693,13 @@ RestoreCursors() {
     SPI_SETCURSORS := 0x57
     DllCall("SystemParametersInfo", UInt, SPI_SETCURSORS, UInt, 0, UInt, 0, UInt, 0 )
 }
-    
+
 FileGetInfo( lptstrFilename) { ; by Lexicos
 	List := "Comments InternalName ProductName CompanyName LegalCopyright ProductVersion"
 		. " FileDescription LegalTrademarks PrivateBuild FileVersion OriginalFilename SpecialBuild"
 	dwLen := DllCall("Version.dll\GetFileVersionInfoSize", "Str", lptstrFilename, "Ptr", 0)
 	dwLen := VarSetCapacity( lpData, dwLen + A_PtrSize)
-	DllCall("Version.dll\GetFileVersionInfo", "Str", lptstrFilename, "UInt", 0, "UInt", dwLen, "Ptr", &lpData) 
+	DllCall("Version.dll\GetFileVersionInfo", "Str", lptstrFilename, "UInt", 0, "UInt", dwLen, "Ptr", &lpData)
 	DllCall("Version.dll\VerQueryValue", "Ptr", &lpData, "Str", "\VarFileInfo\Translation", "PtrP", lplpBuffer, "PtrP", puLen )
 	sLangCP := Format("{:04X}{:04X}", NumGet(lplpBuffer+0, "UShort"), NumGet(lplpBuffer+2, "UShort"))
 	i := {}
@@ -1655,7 +1726,7 @@ LVMoveRow(Up := True) {
 
     LV_Modify(F, "-Select"), LV_Modify(N, "Select")
 }
-    
+
 
 ; Настройки выделения
 GUI:
@@ -1672,13 +1743,13 @@ Def:
     Gui 9:Add, Slider,xp10 yp+36 section w370 v_wait gWait Range160-320 ToolTip2 NoTicks, % _wait
     Gui 9:Add, Text, ys, %_wait% мс
     Gui 9:Add, GroupBox, x16 w480 h86, Интервал посимвольного выделения
-    Gui 9:Add, Slider, xp10 yp+36 section w370 v_symbint gSymbint Range120-360 ToolTip3 NoTicks, % _symbint 
+    Gui 9:Add, Slider, xp10 yp+36 section w370 v_symbint gSymbint Range120-360 ToolTip3 NoTicks, % _symbint
     Gui 9:Add, Text, ys, %_symbint% мс
 
     Gui 9:Add, Button, x50 yp+66 w100 h32 section g9GuiClose, Cancel
     Gui 9:Add, Button, x+6 ys w200 hp gDefaults, По умолчанию
     Gui 9:Add, Button, x+6 ys w100 hp gOK, OK
-    Gui 9:Show,, Задержки выделения    
+    Gui 9:Show,, Задержки выделения
     Return
 
 Wordint:

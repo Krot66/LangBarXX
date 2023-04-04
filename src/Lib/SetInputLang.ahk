@@ -21,16 +21,17 @@
                 Return
             }
         }
-        ; SoundBeep 800, 200
         If !target
             Send % keys
         Else {
+            Critical On
             Loop {
                 Send % keys
                 Sleep 50
                 If (InputLayout()=target) || (InputLayout()=start)
                     Break
-            }                
+            } 
+            Critical Off
         }
     }
 }

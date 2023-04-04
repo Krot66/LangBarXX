@@ -3,7 +3,7 @@
 
 #define MyAppName "LangBar++"
 #define MyAppVersion GetFileVersion("LangBarXX.exe")
-;#define MyAppPublisher
+;#define MyAppPublisher "Horns'n'Hoofs Inc., Minsk, 2022"
 #define MyAppURL "https://github.com/Krot66/LangBarXX"
 
 [Setup]
