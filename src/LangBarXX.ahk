@@ -1,4 +1,4 @@
-﻿#NoEnv
+#NoEnv
 #SingleInstance Force
 #MaxHotkeysPerInterval 99999999
 #MaxThreadsPerHotkey 1
@@ -1187,8 +1187,9 @@ LayoutsAndFlags:
     Gui 3:+LastFound -DPIScale -MinimizeBox +hWndGui3
     Gui 3:Default
     Gui 3:Color, 6DA0B8
+    Gui 3:Margin, 16, 12
     Gui 3:Font, s9
-    Gui 3:Add, ListView, w616 -Multi Grid R4 -LV0x10 HwndHLV NoSort ReadOnly, №|Раскладка|Код (реестр)|Файл флажка
+    Gui 3:Add, ListView, x14 w620 -Multi Grid R4 -LV0x10 HwndHLV NoSort ReadOnly, №|Раскладка|Код (реестр)|Файл флажка
     ImageListID := IL_Create(10)
     LV_SetImageList(ImageListID)
     Gdip_Startup()
@@ -1284,13 +1285,13 @@ LayoutsAndFlags:
     Gui 3:Add, CheckBox, x40 yp+40 vpause_shift_bs, Обменять назначение кнопок Pause и Shift+Backspace
 
     Gui 3:Add, GroupBox, x16 yp+44 w616 h66, Работа с множественными раскладками (+ правые Ctrl, Shift и Alt)
-    Gui 3:Add, Checkbox, x52 yp+32 vdigit_keys, Цифровые клавиши
+    Gui 3:Add, Checkbox, x52 yp+34 vdigit_keys, Цифровые клавиши
     Gui 3:Add, Checkbox, x300 yp0 vf_keys, % "Функциональные клавиши (F*)"
-    Gui 3:Add, Button, x40 y+24 w120 h32 gFlagsFolder, Флажки
-    Gui 3:Add, Button, x+6 yp wp hp gControlPanel, Языки (ПУ)
-    Gui 3:Add, Button, x+6 yp wp hp gLayoutsAndFlags, Обновить
-    Gui 3:Add, Button, x+6 yp w90 hp g3GuiClose, Cancel
-    Gui 3:Add, Button, x+6 yp wp hp g3Save, OK
+    Gui 3:Add, Button, x40 y+24 w120 gFlagsFolder, Флажки
+    Gui 3:Add, Button, x+6 yp wp gControlPanel, Языки (ПУ)
+    Gui 3:Add, Button, x+6 yp wp gLayoutsAndFlags, Обновить
+    Gui 3:Add, Button, x+6 yp w90 g3GuiClose, Cancel
+    Gui 3:Add, Button, x+6 yp wp g3Save, OK
     GuiControl,, pause_shift_bs, % pause_shift_bs
     GuiControl,, set_lang, % set_lang
     GuiControl,, digit_keys, % digit_keys
