@@ -318,7 +318,7 @@ Else
 SetTimer Flag, 40
 
 ;==================================================
-endkeys:="{Esc}{AppsKey}{LWin}{RWin}{F1}{F2}{F3}{F4}{F5}{F6}{F7}{F8}{F9}{F10}{F11}{F12}{Left}{Right}{Up}{Down}{Home}{End}{PgUp}{PgDn}{Del}{Ins}"
+endkeys:="{Esc}{AppsKey}{LCtrl}{LWin}{RWin}{F1}{F2}{F3}{F4}{F5}{F6}{F7}{F8}{F9}{F10}{F11}{F12}{Left}{Right}{Up}{Down}{Home}{End}{PgUp}{PgDn}{BS}{Del}{NumpadDel}{Ins}{NumpadIns}"
 
 If !tab_on
     endkeys.="{Tab}"
@@ -354,7 +354,7 @@ Loop {
     ;ToolTip,,,, 7
     ih:=InputHook("I V", endkeys)
     ih.KeyOpt("{All}", "V N")
-    ih.KeyOpt("{CapsLock}{NumLock}{LShift}{RShift}{LCtrl}{RCtrl}{LAlt}{RAlt}{AltGr}", "-N")
+    ih.KeyOpt("{CapsLock}{NumLock}{LShift}{RShift}{LCtrl}{LCtrl}{RCtrl}{LAlt}{RAlt}{AltGr}{BS}{Pause}", "-N")
     ih.OnKeyDown:=Func("KeyArray")
     ih.Start()
     ih.Wait()
@@ -364,6 +364,8 @@ KeyArray(hook, vk, sc) {
     Global wheel
     Global ks
     wheel:=0
+    If GetKeyState("LCtrl", "P") || GetKeyState("RCtrl", "P")
+        Return
     prefix:=(GetKeyState("LShift", "P") || GetKeyState("RShift", "P")) ? "+" : ""
     prefix:=GetKeyState("RAlt", "P") ? ">!" : prefix
     prefix:=GetKeyState("AltGr", "P") ? "<^>!" : prefix
@@ -401,7 +403,7 @@ Select:
             rem_old:=rem, rem:=per_symbol_select ? RegExReplace(rem_old,".$") : RegExReplace(rem_old,"\S+\s{0,3}$")
             Loop % (StrLen(rem_old)-StrLen(rem)) {
                 SendInput % send_bs ? "{RShift up}{BS down}{BS up}" : "{RCtrl up}+{Left}"
-                Sleep % send_bs ? 40 : 20
+                Sleep % send_bs ? 20 : 10
             }
             If !(rem~="^\s*$") {
                 If per_symbol_select
@@ -591,8 +593,9 @@ Translate:
     If hand_sel
         Gosub Convert
     Gosub SetInputLang
-    Sleep 50
+    Sleep 200
     SendText(out)
+    ih.Stop()
     ;FileAppend % A_Now " " hkey " " A_ThisHotkey " " InputLayout() "`r`ntext: " text "`r`nsel: " sel "`r`nconvert: " convert "`r`nsc_string: " sc_string " (" txt.Length() ")`r`n`r`n", Log.txt, UTF-8 ; логирование введенного и обработанного текста
     Return
 
