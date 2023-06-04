@@ -1,4 +1,4 @@
-﻿#NoEnv
+#NoEnv
 #SingleInstance Force
 #MaxHotkeysPerInterval 99999999
 #MaxThreadsPerHotkey 1
@@ -14,7 +14,7 @@ SetTitleMatchMode Slow
 StringCaseSense Off
 Process Priority,, A
 
-version:="1.3.2"
+version:="1.3.4"
 
 /*
 Использованы:
@@ -89,6 +89,7 @@ IniRead file_aspect, % cfg, Flag, File_Aspect, 0
 
 IniRead indicator, % cfg, Indicator, Indicator, 0
 IniRead lang_switcher, % cfg, Indicator, Lang_Switcher, 0
+IniRead on_full_screen, % cfg, Indicator, On_Full_Screen, 0
 IniRead dx_in, % cfg, Indicator, DX_In, 50
 IniRead dy_in, % cfg, Indicator, DY_In, 50
 IniRead width_in, % cfg, Indicator, Width_In, 2
@@ -168,6 +169,7 @@ Menu Tray, Add, Флажок курсора, :Flag
 Menu Indicator, Add, Включен (Ctrl+Shift+Shift), IndicatorToggle
 Menu Indicator, Add
 Menu Indicator, Add, Переключатель раскладки, Lang_Switcher
+Menu Indicator, Add, На полном экране, OnFullScreen
 Menu Indicator, Add, Настройки индикатора, IndicatorSettings
 Menu Indicator, Add, Правила приложений, Rules
 Menu Tray, Add, Индикатор раскладки, :Indicator
@@ -244,6 +246,7 @@ Start:
 Menu Flag, % flag ? "Check" : "Uncheck", 1&
 Menu Indicator, % indicator ? "Check" : "Uncheck", 1&
 Menu Indicator, % lang_switcher ? "Check" : "Uncheck", 3&
+Menu Indicator, % on_full_screen ? "Check" : "Uncheck", 4&
 
 Menu Scaling, % scaling=0 ? "Check" : "Uncheck", 1&
 Menu Scaling, % scaling=5 ? "Check" : "Uncheck", 2&
@@ -318,7 +321,7 @@ Else
 SetTimer Flag, 40
 
 ;==================================================
-endkeys:="{Esc}{AppsKey}{LCtrl}{LWin}{RWin}{F1}{F2}{F3}{F4}{F5}{F6}{F7}{F8}{F9}{F10}{F11}{F12}{Left}{Right}{Up}{Down}{Home}{End}{PgUp}{PgDn}{BS}{Del}{NumpadDel}{Ins}{NumpadIns}"
+endkeys:="{Esc}{AppsKey}{LWin}{RWin}{F1}{F2}{F3}{F4}{F5}{F6}{F7}{F8}{F9}{F10}{F11}{F12}{Left}{Right}{Up}{Down}{Home}{End}{PgUp}{PgDn}{Del}{NumpadDel}{Ins}{NumpadIns}"
 
 If !tab_on
     endkeys.="{Tab}"
@@ -351,10 +354,10 @@ If f_keys {
 
 Loop {
     ks:=[], ks_string:=""
-    ;ToolTip,,,, 7
+    ;ToolTip % ih.EndReason " " ih.EndKey " " ((ih.EndReason="Stopped") ? stop : ""), 300, 0, 7
     ih:=InputHook("I V", endkeys)
     ih.KeyOpt("{All}", "V N")
-    ih.KeyOpt("{CapsLock}{NumLock}{LShift}{RShift}{LCtrl}{LCtrl}{RCtrl}{LAlt}{RAlt}{AltGr}{BS}{Pause}", "-N")
+    ih.KeyOpt("{CapsLock}{NumLock}{LShift}{RShift}{LCtrl}{RCtrl}{LAlt}{RAlt}{AltGr}{BS}{Pause}", "-N")
     ih.OnKeyDown:=Func("KeyArray")
     ih.Start()
     ih.Wait()
@@ -362,10 +365,14 @@ Loop {
 
 KeyArray(hook, vk, sc) {
     Global wheel
+    Global ih
     Global ks
+    Global stop
     wheel:=0
-    If GetKeyState("LCtrl", "P") || GetKeyState("RCtrl", "P")
+    If (GetKeyState("LCtrl", "P") || GetKeyState("RCtrl", "P")) && !(GetKeyState("RAlt", "P") || GetKeyState("AltGr", "P")) {
+        ih.Stop(), stop:="Ctrl"
         Return
+    }
     prefix:=(GetKeyState("LShift", "P") || GetKeyState("RShift", "P")) ? "+" : ""
     prefix:=GetKeyState("RAlt", "P") ? ">!" : prefix
     prefix:=GetKeyState("AltGr", "P") ? "<^>!" : prefix
@@ -382,7 +389,7 @@ Select:
     hkey:=A_ThisHotkey, button:=RegExReplace(hkey,"^[\^\$\+>]+"), lang_start:=InputLayout()
     Hotkey % "*" button, Return, On
     Hotkey *BS, Return, On
-    sel:=hand_sel:=send_bs:=per_symbol_select:="", key_block:=flag_block:=1, text:=rem:=ih.Input, out:=ks, ih.Stop()
+    sel:=hand_sel:=send_bs:=per_symbol_select:="", key_block:=flag_block:=1, text:=rem:=ih.Input, out:=ks, ih.Stop(), stop:="Select"
     RegRead lang_key, HKEY_CURRENT_USER\Keyboard Layout\Toggle, Hotkey
     If StrLen(text) {
         If (button~="(RButton|MButton)")
@@ -466,7 +473,7 @@ ReConvert:
     Loop Parse, sel
     {
         val:=DllCall("VkKeyScanEx", "Char", Asc(A_LoopField), "UInt", HKL)
-        vk:="vk" SubStr(Format("{:x}", val), -2)
+        vk:=vk_start:="vk" SubStr(Format("{:x}", val), -2)
         If (vk="vk20d") ; удаление двойных переносов
             continue
         If (vk~="vkfff") {
@@ -479,16 +486,18 @@ ReConvert:
             SetInputLang(1, lang_start)
             Exit
         }
-        vk:=RegExReplace(vk,"vk\K\d(?=\w\w)",, sh), sc:="sc" Format("{:x}", GetKeySC(vk))
-        out.Push([(sh ? "+" : "") "{" sc "}", 0])
-        convert.="{" sc "}"
+        sh:=(vk~="vk1\w\w") ? 1 : 0, sc:=Format("sc{:x}", GetKeySC(RegExReplace(vk,"vk\K\d(?=\w\w)")))
+        out.Push([(sh ? "+" : "") "{" sc "}", 0]), convert.=(sh ? "+" : "") "{" sc "}"
     }
     Return
 
 SendText(txt) {
     global sc_string ; Для слежения и записи лога
+    Global hand_sel
     If !txt
         Return
+    If hand_sel
+        Send {Del}
     If IsObject(txt) {
         sc_string:=""
         SetStoreCapsLockMode Off
@@ -567,10 +576,12 @@ OnFlag(hwnd) {
     Return (win && (win=hwnd) && (ctrl~="Static")) ? 1 : 0
 }
 
-#If OnFlag(FlagHwnd) && (InputLayout()~=pause_langs) && pause_langs
-RButton::Goto Translate
-
 #If OnFlag(FlagHwnd)
+RButton::
+    If (InputLayout()~=pause_langs) && pause_langs
+        Goto Translate
+    Return
+
 MButton::
     Gosub Select
     SendText(InvertCase(sel))
@@ -595,8 +606,7 @@ Translate:
     Gosub SetInputLang
     Sleep 200
     SendText(out)
-    ih.Stop()
-    ;FileAppend % A_Now " " hkey " " A_ThisHotkey " " InputLayout() "`r`ntext: " text "`r`nsel: " sel "`r`nconvert: " convert "`r`nsc_string: " sc_string " (" txt.Length() ")`r`n`r`n", Log.txt, UTF-8 ; логирование введенного и обработанного текста
+    ;FileAppend % A_Now " " hkey " " A_ThisHotkey " " InputLayout() "`r`ntext: " text " (" text.Length() ")`r`nsel: " sel "`r`nconvert: " convert "`r`nsc_string: " sc_string "`r`n`r`n", Log.txt, UTF-8 ; логирование введенного и обработанного текста
     Return
 
 ;=======================================
@@ -626,7 +636,6 @@ SetInputLang:
         KeyWait LAlt, T1
         Sleep 100
         SetInputLang(1, target)
-        ih.Stop()
         Return
     }
     If (hkey~="^>\^F\d+$") || (hkey~="^>\+F\d+$")
@@ -651,7 +660,6 @@ SetInputLang:
         target:=(lang_start=_shift_bs_langs[1]) ? _shift_bs_langs[2] : _shift_bs_langs[1]
     SetInputLang(key_switch, Format("{:#.4x}", target))
     Sleep 200
-    ih.Stop()
     Suspend Off
     Return
 
@@ -659,7 +667,6 @@ SetInputLang:
 LShift up::
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
-    ih.Stop()
     Goto SetInputLang
 
 
@@ -668,15 +675,12 @@ RShift up::
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
     Gosub SetInputLang
-    Sleep 300
-    ih.Stop()
     Return
 
 #If lctrl && !key_block
 LCtrl up::
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
-    ih.Stop()
     Goto SetInputLang
 
 #If rctrl && !key_block
@@ -685,7 +689,6 @@ RCtrl up::
         Return
     Gosub SetInputLang
     Sleep 200
-    ih.Stop()
     Return
 
 #If (capslock=-1)
@@ -696,7 +699,6 @@ CapsLock::Return
 
 #If (capslock=2)
 CapsLock::
-    ih.Stop()
     SetInputLang(1)
     KeyWait CapsLock, T1
     SetCapsLockState AlwaysOff
@@ -724,14 +726,14 @@ CapsLock::
 ~*LButton::
     wheel:=x_wheel:=y_wheel:=0
 ~*MButton::
-    ih.Stop()
+    ih.Stop(), stop:="Mouse"
     Return
 
 ~*WheelUp::
 ~*WheelDown::
 ~*WheelRight::
 ~*WheelLeft::
-    ih.Stop()
+    ih.Stop(), stop:="Mouse"
     If !wheel && (cl~="^(ApplicationFrameWindow|Chrome_WidgetWin_\d|MozillaWindowClass|Slimjet_WidgetWin_1)") {
         x_wheel:=_x, y_wheel:=_y
         Gui Hide
@@ -791,6 +793,13 @@ FlagAspect:
 
 Lang_Switcher:
     lang_switcher:=!lang_switcher
+    Gosub Settings
+    Sleep 100
+    Reload
+    Return
+    
+OnFullScreen:
+    on_full_screen:=!on_full_screen
     Gosub Settings
     Sleep 100
     Reload
@@ -1001,6 +1010,7 @@ Settings:
 
     IniWrite % indicator, % cfg, Indicator, Indicator
     IniWrite % lang_switcher, % cfg, Indicator, Lang_Switcher
+    IniWrite % on_full_screen, % cfg, Indicator, On_Full_Screen
     IniWrite % dx_in, % cfg, Indicator, DX_In
     IniWrite % dy_in, % cfg, Indicator, DY_In
     IniWrite % width_in, % cfg, Indicator, Width_In
@@ -1079,7 +1089,6 @@ IndicatorToggle:
 ~#Space up:: ; Space up::
 ~<^LShift up::
 ~!Shift up::
-    ih.Stop()
     SetTimer TrayIcon, Off
     SetTimer Flag, Off
     lang_old:=lang_in_old:=lang_fl_old:=caps_old:=caps_in_old:=""
@@ -1183,13 +1192,14 @@ CapsLockFlag:
     Return
 
 TrayIcon:
+    If (lang:=InputLayout())!=lang_old
+        ih.Stop(), stop:="Lang"
+    lang:=lang ? lang : lang_old
     WinGetClass cl, A
     If (cl="#32768")
         Return
     If upd
         Goto Indicator
-    If !(lang:=InputLayout())
-        lang:=lang_old
     Loop % lang_array.Length()
         If (lang=lang_array[A_Index, 1])
             pFlag:=lang_array[A_Index, 4]
@@ -1230,7 +1240,7 @@ TrayIcon:
 Indicator:
     WinGet pn, ProcessName, A
     WinGetClass cl, A
-    If (cl~="(Shell_TrayWnd|WorkerW|Progman)") {
+    If (cl~="(Shell_TrayWnd|WorkerW|Progman)") || (IsFullScreen() && !on_full_screen){
         Gui 11:Hide
         Return
     }
@@ -1245,7 +1255,7 @@ Indicator:
         }
     }
     ;ToolTip % indicator "/" app_state,600,700, 7 ; индикация правил
-    If ((app_state>0) || (indicator && !(app_state=0)) || WinExist("ahk_id" Gui5)) {
+    If (app_state>0) || (indicator && !(app_state=0)) || WinExist("ahk_id" Gui5) {
         If indicator && !WinExist("ahk_id" IndHwnd)
             Gosub IndicatorGui
         If upd || !WinExist("ahk_id" IndHwnd) || (lang && (lang!=lang_in_old)) || (caps!=caps_in_old) || (num!=num_in_old) || (scr!=scr_in_old) {
@@ -1290,6 +1300,16 @@ Indicator:
         Gui 11:Hide
     lang_in_old:=lang, width_in_old:=width_in, caps_in_old:=caps, num_in_old:=num, scr_in_old:=scr, upd:=0
     Return
+    
+IsFullScreen(win="A") {
+	SysGet, M, Monitor
+	WinGetPos, , , w, h, % win
+	MouseGetPos, , , , ctrl
+	f:=0
+	If (w>=MRight && h>=MBottom && ctrl!="PowerProChildToolbar1")
+		f:=1
+	return f
+}
 
 Flag:
     ;ToolTip % A_ThisHotkey " " A_PriorHotkey " " ih.Input " " ks.Length() " " out.Length(), 0, 0, 8
@@ -1305,7 +1325,7 @@ Flag:
         SetTimer TrayIcon, On
         Sleep 50
         SetTimer Flag, On
-        ih.Stop()
+        ih.Stop(), stop:="NewWindow"
     }
     If !InputLayout() || ((A_OSVersion~="^10.0.22") && (cl="Notepad")) {
         Gui Hide
@@ -1318,7 +1338,8 @@ Flag:
             Return
     }
     If flag {
-        If (lang && (lang!=lang_fl_old) && !flag_block) || (width!=width_old) || !WinExist("ahk_id" FlagHwnd){
+        ;If (lang && (lang!=lang_fl_old) && !flag_block) || (width!=width_old) || !WinExist("ahk_id" FlagHwnd){
+        If ((pFlag_old!=pFlag) && !flag_block) || (width!=width_old) || !WinExist("ahk_id" FlagHwnd){
             fl_h:=file_aspect ? width*hf//wf : width*3//4, mn:=no_border ? 0 : 1
             pBanner:=Gdip_CreateBitmap(width+mn*2, fl_h+mn*2)
             F:=Gdip_GraphicsFromImage(pBanner)
@@ -1334,6 +1355,7 @@ Flag:
             Sleep 5
             Gui Default
             GuiControl,, %FlagID%, *w%width% *h%fl_h% hbitmap:*%FlagHandle%
+            pFlag_old:=pFlag
         }
         GuiControlGet caps_vis, Visible, Static1
         If _x && _y && (FlagHwnd!=WinExist("A")){
@@ -1352,7 +1374,7 @@ Flag:
             WinSet Top,, ahk_id %FlagHwnd%
             If !WinExist("ahk_id" FlagHwnd)
                 Gosub FlagGui
-            width_old:=width, lang_fl_old:=lang, fl_h_old:=fl_h
+            width_old:=width, fl_h_old:=fl_h
         }
         Else
             Gui Hide
@@ -1654,33 +1676,37 @@ Esc::Goto 5GuiClose
 #If WinExist("ahk_id" Gui5)
 Right::
     While GetKeyState("LButton", "P") || GetKeyState("Right", "P") {
-        dx_in:=(dx_in<100) ? dx_in+1 : dx_in, upd:=1
+        dx_in:=(dx_in<100) ? dx_in+((A_Index>3) ? 0.2 : 0.1) : dx_in, upd:=1
+        Gosub Indicator
         Gosub StatusBar
-        Sleep 200
+        Sleep % (A_Index>3) ? 20 : 200
     }
 Return
 
 Left::
     While GetKeyState("LButton", "P") || GetKeyState("Left", "P") {
-        dx_in:=(dx_in>0) ? dx_in-1 : dx_in, upd:=1
+        dx_in:=(dx_in>0) ? dx_in-((A_Index>3) ? 0.2 : 0.1): dx_in, upd:=1
+        Gosub Indicator
         Gosub StatusBar
-        Sleep 200
+        Sleep % (A_Index>3) ? 20 : 200
     }
     Return
 
 Up::
     While GetKeyState("LButton", "P") || GetKeyState("Up", "P") {
-        dy_in:=(dy_in>0) ? dy_in-1 : dy_in, upd:=1
+        dy_in:=(dy_in>0) ? dy_in-((A_Index>3) ? 0.2 : 0.1) : dy_in, upd:=1
+        Gosub Indicator
         Gosub StatusBar
-        Sleep 200
+        Sleep % (A_Index>3) ? 20 : 200
     }
     Return
 
 Down::
     While GetKeyState("LButton", "P") || GetKeyState("Down", "P") {
-        dy_in:=(dy_in<100) ? dy_in+1 : dy_in, upd:=1
+        dy_in:=(dy_in<100) ? dy_in+((A_Index>3) ? 0.2 : 0.1) : dy_in, upd:=1
+        Gosub Indicator
         Gosub StatusBar
-        Sleep 200
+        Sleep % (A_Index>3) ? 20 : 200
     }
     Return
 
@@ -1732,10 +1758,10 @@ Rules:
     Gui 6:Add, ListView, x8 w720 r16 -Multi NoSortHdr Checked +Grid -LV0x10  vapp gProperties, % " №|+/-|Имя файла|Класс окна|Описание/комментарий"
     Loop % apps.Length()
         LV_Add(apps[A_Index,1] ? "Check" : "", A_Index, apps[A_Index, 2] ? "+" : "-", apps[A_Index, 3], apps[A_Index, 4], apps[A_Index, 5])
-    LV_ModifyCol(1,"50 Center")
+    LV_ModifyCol(1,"60 Center")
     LV_ModifyCol(2,"40 Center")
     LV_ModifyCol(3, "200")
-    LV_ModifyCol(4, "200")
+    LV_ModifyCol(4, "190")
     Loop % LV_GetCount()
         LV_Modify(A_Index, "-Select")
     LV_ModifyCol(5, (LV_GetCount()>16) ? 200:220)
@@ -1837,8 +1863,9 @@ Properties:
     Gui 7:Add, Edit, x10 w160 vpr_name, % pr_name
     Gui 7:Add, Text, x+5 yp+2, - имя файла
     Gui 7:Add, Button, x+10 yp-2 w60 gAll, Все!
-    Gui 7:Add, Edit, x10 w160 ReadOnly vclass, % class
+    Gui 7:Add, Edit, x10 w160 vclass ReadOnly, % class
     Gui 7:Add, Text, x+5 yp+2, - класс окна
+    ;Gui 7:Add, Button, x260 yp-2 w60 gClassAll, Все!
     Gui 7:Add, Edit, x10 w160 vdescription, % description
     Gui 7:Add, Text, x+5 yp+2, - описание/комментарий
     Gui 7:Add, Radio, x40 valways_on, Всегда включен
@@ -1859,14 +1886,14 @@ Properties:
 
 7GuiOK:
     Gui 7:Submit
+    If (pr_name=="*.*") && ((class=="*") || !class) {
+        MsgBox, 4129, , Недопустимо создание такого универсального правила!, 22
+        Return
+    }
     Gui 6:Default
     If row
         LV_Modify(row,,, always_on ? "+" : "-", pr_name, class, description)
     Else {
-        If (name="*.*") && !cl {
-            MsgBox, 4129, , Недопустимо создание универсального правила с пустым классом окна!, 22
-            Return
-        }
         Loop % LV_GetCount() {
             LV_GetText(name, A_Index, 3)
             LV_GetText(cl, A_Index, 4)
@@ -1887,6 +1914,10 @@ Esc::Goto 7GuiCancel
 
 All:
     GuiControl,, pr_name, *.*
+    Return
+    
+ClassAll:
+    GuiControl,, class, *
     Return
 
 
