@@ -14,7 +14,7 @@ SetTitleMatchMode Slow
 StringCaseSense Off
 Process Priority,, A
 
-version:="1.3.4"
+version:="1.3.6"
 
 /*
 Использованы:
@@ -55,17 +55,32 @@ If no_files {
     ExitApp
 }
 
-cfg:="LangBarXX.ini"
+FileCreateDir backup
 
-If !FileExist("portable.dat") {
-    FileCreateDir % A_AppData "\LangBarXX"
-    cfg:=A_AppData "\LangBarXX\" cfg
+If FileExist("config2") ; конфигурация портативная или установленная
+    cfg_folder:=A_ScriptDir "\config", cfg:="config\LangBarXX.ini" 
+Else {
+    cfg_folder:=A_AppData "\LangBarXX", cfg:=cfg_folder "\LangBarXX.ini"
+    FileCreateDir % cfg_folder
+    If FileExist(cfg_folder "\temp.txt")
+        Gosub USB-Version
 }
-cfg_exist:=FileExist(cfg) ? 1 : 0
+
+; ====== Удаление старого ======
+If FileExist("LangBarXX.ini") && FileExist("config") && !FileExist("config\LangBarXX.ini")
+    FileMove LangBarXX.ini, config
+FileDelete LB_WatchDog.exe
+FileDelete LangBarXX.ini
+FileDelete ReadMe.html
+FileDelete ReadMe.md
+FileRemoveDir ReadMe.assets, 1
+FileDelete Changelog.txt
+FileDelete portable.dat
 IniDelete % cfg, Main
 IniDelete % cfg, Tray, key_switch
 IniDelete % cfg, Layouts, pause
 IniDelete % cfg, Layouts, shift_bs
+;================================
 
 IniRead aspect, % cfg, Tray, Aspect, 1
 IniRead icon_shift, % cfg, Tray, Icon_Shift, 1
@@ -106,7 +121,7 @@ IniRead lctrl, % cfg, Layouts, LCtrl, 0
 IniRead rctrl, % cfg, Layouts, RCtrl, 0
 IniRead lshift, % cfg, Layouts, LShift, 0
 IniRead rshift, % cfg, Layouts, RShift, 0
-IniRead double_click, % cfg, Layouts, Double_Click, 1
+IniRead double_click, % cfg, Layouts, Double_Click, 0
 IniRead digit_keys, % cfg, Layouts, Digit_Keys, 0
 IniRead f_keys, % cfg, Layouts, F_Keys, 0
 
@@ -119,7 +134,7 @@ IniRead enter_on, % cfg, Select, Enter_On, 0
 IniRead tab_on, % cfg, Select, Tab_On, 0
 
 apps:=[]
-If cfg_exist {
+If FileExist(cfg) {
     Loop {
         IniRead a, % cfg, Apps, app%A_Index%, % " "
         If !a
@@ -222,13 +237,17 @@ Menu Tray, Add, Автозапуск, :Autorun
 
 Menu Help, Add, Справка, Help
 Menu Help, Add, Что нового?, Changelog
+If !FileExist("config") {
+    Menu Help, Add,
+    Menu Help, Add, USB-версия, USB-Version
+}
 Menu Help, Add,
 Menu Help, Add, О программе, About
 Menu Tray, Add, Помощь, :Help
 Menu Tray, Add
-Menu Tray, Add, Сброс настроек, Reset
+Menu Tray, Add, Сброс и бэкап настроек, Reset
 Menu Tray, Add
-Menu Tray, Add, Перезапуск, Reload
+Menu Tray, Add, Перезапуск, Apply
 Menu Tray, Add, Выход, Exit
 Menu Tray, Click, 1
 
@@ -242,7 +261,6 @@ If A_IsCompiled {
     Menu, Tray, Icon, 18&, % A_ScriptFullPath, 6
 }
 
-Start:
 Menu Flag, % flag ? "Check" : "Uncheck", 1&
 Menu Indicator, % indicator ? "Check" : "Uncheck", 1&
 Menu Indicator, % lang_switcher ? "Check" : "Uncheck", 3&
@@ -298,7 +316,7 @@ If !scrolllock
 
 wait_button:=wait/1000, wait_button2:=wordint/2000, wait_button3:=wordint/1000
 
-If A_IsCompiled && FileExist("LB_WatchDog.exe") {
+If A_IsCompiled && FileExist("bin\LB_WatchDog.exe") {
     Gosub LB_WatchDog
     SetTimer LB_WatchDog, 60000
 }
@@ -318,7 +336,7 @@ If (A_TickCount<150000) {
 }
 Else
     Sleep 300
-SetTimer Flag, 40
+SetTimer Flag, 33
 
 ;==================================================
 endkeys:="{Esc}{AppsKey}{LWin}{RWin}{F1}{F2}{F3}{F4}{F5}{F6}{F7}{F8}{F9}{F10}{F11}{F12}{Left}{Right}{Up}{Down}{Home}{End}{PgUp}{PgDn}{Del}{NumpadDel}{Ins}{NumpadIns}"
@@ -763,47 +781,34 @@ Scaling:
         scaling=4
     If (A_ThisMenuItemPos=5)
         scaling=7
+Apply:
     Gosub Settings
-    Sleep 100
+    Sleep 50
     Reload
+    Return
 
 Smoothing:
     If (A_ThisMenuItemPos=4)
         smoothing:=(smoothing=2) ? 3 : 2
-    Gosub Settings
-    Sleep 100
-    Reload
-    Return
+    Goto Apply
 
 NoBorder:
     If (A_ThisMenuItemPos=5)
         no_border:=!no_border
-    Gosub Settings
-    Sleep 100
-    Reload
-    Return
+    Goto Apply
 
 FlagAspect:
     If (A_ThisMenuItemPos=6)
         file_aspect:=!file_aspect
-    Gosub Settings
-    Sleep 100
-    Reload
-    Return
+    Goto Apply
 
 Lang_Switcher:
     lang_switcher:=!lang_switcher
-    Gosub Settings
-    Sleep 100
-    Reload
-    Return
+    Goto Apply
     
 OnFullScreen:
     on_full_screen:=!on_full_screen
-    Gosub Settings
-    Sleep 100
-    Reload
-    Return
+    Goto Apply
 
 CapsLockState:
     If (A_ThisMenuItem="Без изменений")
@@ -820,48 +825,33 @@ CapsLockState:
         capslock:=4
     If (A_ThisMenuItem="Только инверсия регистра")
         capslock:=5
-    Gosub Settings
-    Sleep 100
-    Reload
+    Goto Apply
 
 NumLock:
     numlock_on:=!numlock_on
-    Gosub Settings
-    Sleep 100
-    Reload
-    Return
+    Goto Apply
 
 NumLock_Icon:
     If (A_ThisMenuItemPos=3)
         numlock_icon:=!numlock_icon
     Else
         numlock_icon_in:=!numlock_icon_in
-    Gosub Settings
-    Sleep 100
-    Reload
-    Return
+    Goto Apply
 
 ScrollLock:
     scrolllock:=!scrolllock
-    Gosub Settings
-    Sleep 100
-    Reload
+    Goto Apply
 
 ScrollLock_Icon:
     If (A_ThisMenuItemPos=3)
         scrolllock_icon:=!scrolllock_icon
     Else
         scrolllock_icon_in:=!scrolllock_icon_in
-    Gosub Settings
-    Sleep 100
-    Reload
+    Goto Apply
 
 As_Flag:
     flag_sett:=!flag_sett
-    Gosub Settings
-    Sleep 100
-    Reload
-    Return
+    Goto Apply
 
 
 Aspect:
@@ -870,27 +860,24 @@ Aspect:
         aspect:=2
     If (A_ThisMenuItem~="2")
         aspect:=0
-    Gosub Settings
-    Sleep 100
-    Reload
-    Return
+    Goto Apply
 
 SymbSel:
     symbsel:=symbsel ? 0 : 1
-    Goto Start
+    Goto Apply
 
 StartOnly:
     startonly:=startonly ? 0 : 1
-    Goto Start
+    Goto Apply
 
 EnterOn:
     enter_on:=enter_on ? 0 : 1
-    Goto Start
+    Goto Apply
 
 TabOn:
     tab_on:=tab_on ? 0 : 1
-    Goto Start
-
+    Goto Apply
+    
 Reset:
     CheckText := "*Сохранить копию текущих"
     msg:="Все настройки к значениям по умолчанию?`nКнопка 'Бэкап' сохраняет копию без сброса"
@@ -899,14 +886,14 @@ Reset:
         Return
     If (Result == "OK") {
         If CheckText
-            FileCopy % cfg, % "LangBarXX_" A_YYYY "." A_MM "." A_DD "_" A_Hour "." A_Min "." A_Sec ".ini"
+            Run % "bin\7zr.exe a backup\backup_" A_YYYY "." A_MM "." A_DD "_" A_Hour "." A_Min "." A_Sec ".zip " cfg_folder "\*"  
         FileDelete % cfg
         Reload
     }
     If (Result == "Бэкап")
-        FileCopy % cfg, % "Backup_" A_YYYY "." A_MM "." A_DD "_" A_Hour "." A_Min "." A_Sec ".ini"
+        Run % "bin\7zr.exe a backup\backup_" A_YYYY "." A_MM "." A_DD "_" A_Hour "." A_Min "." A_Sec ".zip " cfg_folder "\*"   
         If !ErrorLevel {
-            ToolTip Бэкап сохранен`nв папке программы!
+            MsgBox, 64, , Бэкап сохранен в подпапке backup программы!, 2
             SetTimer ToolTip, -2000
         }
     Return
@@ -916,29 +903,29 @@ Esc::WinClose LangBar++ ahk_class AutoHotkeyGUI
 #If
 
 Help:
-    Run ReadMe.html
+    Run doc\ReadMe.html
     If ErrorLevel
-        Run % A_WinDir "\System32\OpenWith.exe " """" A_ScriptDir "\ReadMe.html"""
+        Run % A_WinDir "\System32\OpenWith.exe " """" A_ScriptDir "doc\ReadMe.html"""
     Return
 
 Changelog:
-    Run Changelog.txt
+    Run doc\Changelog.txt
     Return
 
 About:
     Gui 4:Destroy
-    Gui 4:Margin, 36, 12
+    Gui 4:Margin, 24, 12
     Gui 4:Font, s9
     Gui 4:Color, 8CB9D7
     Gui 4:-DPIScale +AlwaysOnTop +ToolWindow +HwndGui4
-    Gui 4:Add, Link, x108, <a href="https://github.com/Krot66/LangBarXX">GitHub</a>
-    Gui 4:Add, Link, x68 yp+24 , <a href="http://forum.ru-board.com/topic.cgi?forum=5&topic=50256#1">Форум Ru.Board</a>
+    Gui 4:Add, Link, x110, <a href="https://github.com/Krot66/LangBarXX">GitHub</a>
+    Gui 4:Add, Link, x70 yp+24 , <a href="http://forum.ru-board.com/topic.cgi?forum=5&topic=50256#1">Форум Ru.Board</a>
     If A_IsCompiled
         Gui 4:Add, Picture, x60 y+16 w160 h-1 Icon1, % A_ScriptName
     Else
         Gui 4:Add, Picture, x60 y+16 w160 h-1, src\LB.ico
     Gui 4:Font, s10
-    Gui 4:Add, Text, x60 y+10, % "LangBar++ v." version
+    Gui 4:Add, Text, x40 y+10, % "LangBar++ v. " version " " (A_PtrSize=8 ? "x64" : "x32") . (FileExist("config") ? "`n             portable" : "")
     Gui 4:Font, s9
     Gui 4:Add, Button, x80 y+16 w120 h32 g4GuiClose, OK
     Gui 4:Show,, О программе
@@ -951,11 +938,6 @@ About:
 #If WinActive("ahk_id" Gui4 )
 Esc::Goto 4GuiClose
 #If
-
-Reload:
-    Gosub Settings
-    Reload
-    Return
 
 Exit:
     Loop % lang_count
@@ -978,13 +960,12 @@ Autorun:
         RegWrite Reg_SZ, HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run, LangBarXX, % """" A_ScriptFullPath """"
     Else
         RegDelete HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run, LangBarXX
-    Reload
-    Return
+    Goto Apply
 
 LB_WatchDog:
     Process Exist, LB_WatchDog.exe
     If !ErrorLevel
-        Run % "LB_WatchDog.exe " A_ScriptName, % A_ScriptDir
+        Run % "bin\LB_WatchDog.exe " A_ScriptName
     Return
 
 Settings:
@@ -1507,7 +1488,7 @@ LayoutsAndFlags:
     Gui 3:Add, DropDownList, vshift_bs_kl Choose%shift_bs_kl% AltSubmit x300 yp-4 w310, % lang_set
     Gui 3:Add, CheckBox, x40 yp+40 vpause_shift_bs, Обменять назначение кнопок Pause и Shift+Backspace
 
-    Gui 3:Add, GroupBox, x16 w616 h72, Работа с множественными раскладками (+ правые Ctrl и Shift)
+    Gui 3:Add, GroupBox, x16 w616 h72, Работа с множеством раскладок (+ правые Ctrl и Shift)
     Gui 3:Add, Checkbox, x52 yp+34 vdigit_keys, Цифровые клавиши
     Gui 3:Add, Checkbox, x300 yp0 vf_keys, % "Функциональные клавиши (F*)"
     Gui 3:Add, Button, x40 y+28 w120 gFlagsFolder, Флажки
@@ -1539,8 +1520,7 @@ LayoutsAndFlags:
 
     pause_langs:=(pause_kl>1) ? "(" lang_list[pause_kl,1] "|" lang_list[pause_kl, 2] ")" : ""
     shift_bs_langs:=(shift_bs_kl>1) ? "(" lang_list[shift_bs_kl,1] "|" lang_list[shift_bs_kl, 2] ")" : ""
-    Gosub Settings
-    Reload
+    Goto Apply
 
 3GuiClose:
     Gui 3:Destroy
@@ -2025,3 +2005,25 @@ WheelUp::
 WheelDown::
     Return
 #If
+
+USB-Version:
+    If !FileExist(cfg_folder "\temp.txt") {
+        FileAppend,, % cfg_folder "\temp.txt"
+        Sleep 50
+        Reload
+    }
+    Else {
+        FileDelete % cfg_folder "\temp.txt"
+        FileSelectFolder usb_folder, ::{20d04fe0-3aea-1069-a2d8-08002b30309d},, Выберите папку, в которую будет скопирована USB-версия программы
+        If !(usb_folder:=RegExReplace(usb_folder, "\\$"))
+            Return
+        FileCopyDir % A_ScriptDir, %usb_folder%\LangBarXX, 1
+        FileCreateDir %usb_folder%\LangBarXX\config
+        FileCopy % A_AppData "\LangBarXX\*.*", %usb_folder%\LangBarXX\config
+        FileRemoveDir %usb_folder%\LangBarXX\flags_old, 1
+        FileRemoveDir %usb_folder%\LangBarXX\masks_old, 1
+        FileDelete %usb_folder%\LangBarXX\unins000.*
+        MsgBox, 64, , Портативная версия программы со всеми настройками создана в %usb_folder%\LangBarXX, 2.5
+    }
+    Return    
+    
