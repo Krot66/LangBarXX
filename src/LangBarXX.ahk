@@ -57,7 +57,7 @@ If no_files {
 
 FileCreateDir backup
 
-If FileExist("config2") ; конфигурация портативная или установленная
+If FileExist("config") ; конфигурация портативная или установленная
     cfg_folder:=A_ScriptDir "\config", cfg:="config\LangBarXX.ini" 
 Else {
     cfg_folder:=A_AppData "\LangBarXX", cfg:=cfg_folder "\LangBarXX.ini"
