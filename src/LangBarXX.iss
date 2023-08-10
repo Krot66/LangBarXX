@@ -21,7 +21,7 @@ OutputDir=D:\Soft\LangBarXX
 OutputBaseFilename=LangBarXX_setup
 Compression=lzma
 SolidCompression=yes
-PrivilegesRequired=none
+PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64 ia64
 WizardImageFile=_Installer\WizModernImage-IS.bmp
 WizardSmallImageFile=_Installer\WizModernSmallImage-IS.bmp
@@ -37,15 +37,14 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "LangBarXX64.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "LangBarXX.exe"; DestDir: "{app}"; Flags: ignoreversion
-; Source: "LB_WatchDog.exe"; DestDir: "{app}"; Flags: ignoreversion
-; Source: "config"; DestDir: "{app}"; Check: IsTaskSelected('portablemode');Flags: ignoreversion
 Source: "{app}\flags\*"; DestDir: "{app}\flags_old"; Flags: external skipifsourcedoesntexist
 Source: "{app}\masks\*"; DestDir: "{app}\masks_old"; Flags: external skipifsourcedoesntexist
 Source: "bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "flags\*"; DestDir: "{app}\flags"; Flags: ignoreversion
 Source: "masks\*"; DestDir: "{app}\masks"; Flags: ignoreversion
-Source: "doc\*"; DestDir: "{app}\doc"; Flags: ignoreversion
-Source: "doc\ReadMe.assets\*"; DestDir: "{app}\doc\\ReadMe.assets"; Flags: ignoreversion
+Source: "doc\*"; DestDir: "{app}\doc"; Flags: ignoreversion recursesubdirs
+Source: "dict\*"; DestDir: "{app}\dict"; Flags: ignoreversion recursesubdirs
+Source: "editor\*"; DestDir: "{app}\editor"; Flags: ignoreversion recursesubdirs
 Source: "{src}\flags\*"; DestDir: "{app}\flags"; Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{src}\masks\*"; DestDir: "{app}\masks"; Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{src}\config\*"; DestDir: "{userappdata}\LangBarXX"; Check: not IsTaskSelected('portablemode'); Flags: external skipifsourcedoesntexist ignoreversion
