@@ -14,7 +14,7 @@ SetTitleMatchMode Slow
 Process Priority,, A
 FileEncoding UTF-8
 
-version:="1.4.0"
+version:="1.4.0.6"
 
 /*
 Использованы:
@@ -445,12 +445,12 @@ KeyArray(hook, vk, sc) {
     Global
     StringCaseSense Off
     tstart:=A_TickCount, print_win:=WinExist("A")
+    If (print_win!=print_win_old)
+        mouse_click:=new_lang:=text_convert:=""
     il:=InputLayout()
-    If (il!=il_old) && il_old
-        new_lang:=1, key_name:=""
-    If mclick && (print_win=print_win_old) && print_win_old
-        mouse_click:=1, key_name:=""     
-    il_old:=il, wheel:=0, vk0:=vk, sc0:=sc, mclick:="", print_win_old:=print_win
+    If (il!=il_old) && il_old && new_lang_ignore
+        new_lang:=1, key_name:=text_convert:="" 
+    il_old:=il, print_win_old:=print_win, wheel:=0, vk0:=vk, sc0:=sc
     
     dic_curr:=dic_%il%, alt_lang:=lang_auto_single
     If !single_lang
@@ -867,10 +867,9 @@ LShift up::
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
     If (A_TickCount-lang_change_time<1000)
-        Return
-    new_lang:=1, key_name:=mouse_click_ignore ? "" : key_name
+        Return    
     Gosub SetInputLang
-    ih.Stop()
+    ih.Stop(), new_lang:=1, key_name:=text_convert:=""
     Return
 
 
@@ -879,10 +878,9 @@ RShift up::
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
     If (A_TickCount-lang_change_time<1000)
-        Return
-    new_lang:=1, key_name:=mouse_click_ignore ? "" : key_name
+        Return    
     Gosub SetInputLang
-    ih.Stop()
+    ih.Stop(), new_lang:=1, key_name:=text_convert:=""
     Return
 
 #If lctrl && !key_block
@@ -890,10 +888,9 @@ LCtrl up::
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
     If (A_TickCount-lang_change_time<1000)
-        Return
-    new_lang:=1, key_name:=mouse_click_ignore ? "" : key_name
+        Return    
     Gosub SetInputLang
-    ih.Stop()
+    ih.Stop(), new_lang:=1, key_name:=text_convert:=""
     Return
 
 #If rctrl && !key_block
@@ -901,11 +898,10 @@ RCtrl up::
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
     If (A_TickCount-lang_change_time<1000)
-        Return
-    new_lang:=1, key_name:=mouse_click_ignore ? "" : key_name
+        Return    
     Gosub SetInputLang
     Sleep 200
-    ih.Stop()
+    ih.Stop(), new_lang:=1, key_name:=text_convert:=""
     Return
 
 #If (capslock=-1)
@@ -944,7 +940,11 @@ CapsLock::
     ih.Stop(), stop:="Mouse"
     If GetCaretLocation()
         wheel:=x_wheel:=y_wheel:=0
-    mclick:=1
+    If (WinExist("A")=print_win)
+    ;&& mouse_click_ignore
+        mouse_click:=1, key_name:=text_convert:="" 
+    Else 
+        print_win:=WinExist("A")
     Return
 
 ~*WheelUp::
@@ -1444,7 +1444,7 @@ Masks:
 
 TrayIcon:
     If ttip1 {
-        ToolTip % "sl/ksl: " str_length "/" ks.Length() " rs: " rs " tc: " text_convert " ls: " last_space, 300, 0, 12
+        ToolTip % "sl/ksl: " str_length "/" ks.Length() " rs: " rs " tc/nl/mc: " text_convert "/" new_lang "/" mouse_click " ls: " last_space, 250, 0, 12
         Tooltip % ">" t0 "<>" t1 "<ls: " last_space " kn: " key_name "`n>" t0_alt "<>" t2 "<", 550, 0, 13
     }
     lang:=InputLayout(), lang:=lang ? lang : lang_old
@@ -2497,7 +2497,7 @@ Acupdate:
     Sleep 100
     lang_auto:="(" lang_list_auto[lang_auto_i,1] "|" lang_list_auto[lang_auto_i, 2] ")"
     lang_auto_single:=lang_menu_s[lang_auto_i2]
-    lang_auto_o:="", rn:=""
+    lang_auto_o:="", rn:=mouse_click:=""
     
     Loop % row_numb {
         rn:=LV_GetNext(rn, "C")
@@ -2756,6 +2756,6 @@ Statistics:
                 tr+=1, rl:=StrLen(res1), res1_all+=rl, max:=Max(rl, max), res2_all+=Format("{:d}", res2), res3_all+=Format("{:d}", res3), res4_all+=(res4 ? 1 : 0)          
             
         }
-        MsgBox % "Среднее время загрузки программы: " lpr/nl " mc`nИз них загрузки словарей: " ldt/nl " mc`n`nСреднее время обработки нажатий клавиш: " res2_all/tr " mc`nСреднее время преобразования текста: " res3_all/tr " mc`n`nСредняя длина преобразованного текста: " Format("{:.3}", res1_all/tr) "`nМаксимальная длина преобразованного текста: " max "`nЧисло преобразований: " tr "`nЧисло отмен преобразований: " res4_all " (" Format("{:.2}", res4_all/tr*100) " %)"
+        MsgBox,, Статистика, % "Среднее время загрузки программы: " lpr/nl " mc`nИз них загрузки словарей: " ldt/nl " mc`n`nСреднее время обработки нажатий клавиш: " res2_all/tr " mc`nСреднее время преобразования текста: " res3_all/tr " mc`n`nСредняя длина преобразованного текста: " Format("{:.3}", res1_all/tr) "`nМаксимальная длина преобразованного текста: " max "`nЧисло преобразований: " tr "`nЧисло отмен преобразований: " res4_all " (" Format("{:.2}", res4_all/tr*100) " %)"
     }
     Return
