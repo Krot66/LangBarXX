@@ -2,6 +2,7 @@
 #SingleInstance Force
 #MaxHotkeysPerInterval 99999999
 #MaxThreadsPerHotkey 1
+#InstallKeybdHook
 #KeyHistory 100
 SetWinDelay -1
 SetBatchLines -1
@@ -14,7 +15,7 @@ SetTitleMatchMode Slow
 Process Priority,, A
 FileEncoding UTF-8
 
-version:="1.4.0.6"
+version:="1.4.0.8"
 
 /*
 Использованы:
@@ -444,18 +445,7 @@ Loop {
 KeyArray(hook, vk, sc) {
     Global
     StringCaseSense Off
-    tstart:=A_TickCount, print_win:=WinExist("A")
-    If (print_win!=print_win_old)
-        mouse_click:=new_lang:=text_convert:=""
-    il:=InputLayout()
-    If (il!=il_old) && il_old && new_lang_ignore
-        new_lang:=1, key_name:=text_convert:="" 
-    il_old:=il, print_win_old:=print_win, wheel:=0, vk0:=vk, sc0:=sc
-    
-    dic_curr:=dic_%il%, alt_lang:=lang_auto_single
-    If !single_lang
-        RegExMatch(lang_auto, "\(\K.+(?=\|)", auto1), RegExMatch(lang_auto, "\|\K.+(?=\))", auto2), alt_lang:=(il=auto1) ? auto2 : auto1
-    dic_alt:=dic_%alt_lang%
+    tstart:=A_TickCount, vk0:=vk, sc0:=sc
     
     If (GetKeyState("LCtrl", "P") || GetKeyState("RCtrl", "P")) && !(GetKeyState("RAlt", "P") || GetKeyState("AltGr", "P")) {
         ih.Stop(), stop:="Ctrl"
@@ -466,9 +456,21 @@ KeyArray(hook, vk, sc) {
     prefix:=GetKeyState("AltGr", "P") ? "<^>!" : prefix,
     vk:=Format("vk{:x}", vk), sc:=Format("sc{:x}", sc),
     ks.Push([prefix "{" sc "}", GetKeyState("CapsLock", "T")])
+
+    If ((print_win:=WinExist("A"))!=print_win_old)
+        mouse_click:=new_lang:=text_convert:=""    
+    If ((il:=InputLayout())!=il_old) && il_old && new_lang_ignore
+        new_lang:=1, key_name:=text_convert:="" 
+    il_old:=il, print_win_old:=print_win, wheel:=0
     
-    If !autocorrect || (!single_lang && !(il~=lang_auto)) || (single_lang && !(il~=lang_auto_others))
-        Return  
+    If !autocorrect || (!single_lang && !(il~=lang_auto)) || (single_lang && !(il~=lang_auto_others) && lang_auto_others) || (single_lang && (il=lang_auto_single))
+        Return
+    If single_lang
+        alt_lang:=lang_auto_single
+    Else
+        RegExMatch(lang_auto, "\(\K.+(?=\|)", auto1), RegExMatch(lang_auto, "\|\K.+(?=\))", auto2), alt_lang:=(il=auto1) ? auto2 : auto1
+    dic_curr:=dic_%il%, dic_alt:=dic_%alt_lang%
+
     If (key_name~="^(Space|Tab|Enter|NumpadEnter)$")
         text_convert:=new_lang:=mouse_click:=text:=text_alt:=""
 
@@ -497,7 +499,7 @@ KeyArray(hook, vk, sc) {
             StringUpper symb, symb
         text_alt.=symb 
     }
-    End:    
+    End:
     RegExMatch(ih_old, "\S+(?=\s?$)", text), RegExMatch(text_alt, "\S+(?=\s?$)", t_alt), RegExMatch(ih_old, "\S+\s*$", ct), str_length:=StrLen(ct)  
     If text_convert || (new_lang && new_lang_ignore)  || (mouse_click && mouse_click_ignore)
         Return
@@ -596,7 +598,7 @@ DelAccent(txt) {
             SoundPlay *16
         If tray_tip {
             TrayTip
-            If SubStr(A_OSVersion,1,3) = "10." {
+            If (A_OSVersion~="^10\.") {
                 Menu Tray, NoIcon
                 Sleep 200
                 Menu Tray, Icon
@@ -608,7 +610,8 @@ DelAccent(txt) {
         SetInputLang(1, il_convert)
         Sleep 5
         SendText(out_orig)
-        Send {Shift up}
+        If (A_ThisHotkey~="\+")
+            Send {Shift up}
         FileAppend % "`r`n" t0 "/" t0_alt, logs\undo.log        
         FileAppend % " <==", logs\transform.log
         text_convert:="", ih.Stop(), out_orig:=[]
@@ -941,10 +944,8 @@ CapsLock::
     If GetCaretLocation()
         wheel:=x_wheel:=y_wheel:=0
     If (WinExist("A")=print_win)
-    ;&& mouse_click_ignore
-        mouse_click:=1, key_name:=text_convert:="" 
-    Else 
-        print_win:=WinExist("A")
+        mouse_click:=1, key_name:=text_convert:=""
+    print_win:=WinExist("A")
     Return
 
 ~*WheelUp::
@@ -2353,14 +2354,14 @@ LoadDict:
     StringCaseSense Locale
     Loop % lang_count {
         lac:=lang_array[A_Index, 1]
-        If !((lac~=lang_auto) || (lac=lang_auto_single) || (lac~=lang_auto_others))
+        If !((lac~=lang_auto) || (lac=lang_auto_single) || ((lac~=lang_auto_others) && lang_auto_others))
             Continue
         df:=lang_array[A_Index, 5], dic_out:="" 
         Loop Files, % "dict\" df "\*.dic"
         {
-            If only_main_dict && (A_LoopFileName!=df ".dic")
+            If only_main_dict && (A_LoopFileName!=df ".dic$")
                 Continue
-            dict_string.=A_ScriptDir "\" A_LoopFilePath ","
+            dict_string.="""" A_ScriptDir "\" A_LoopFilePath ""","
             FileRead dic, % A_LoopFilePath
             words:=StrSplit(dic, "`n", "`r")
             For each, ds in words
@@ -2382,8 +2383,8 @@ LoadDict:
             Sort dic_out, U
         }
         dv:=lang_array[A_Index, 1], dic_%dv%:=dic_out
-        ;FileDelete dict\dic%fn%
-        ;FileAppend % dic_out, dict\dic%fn%
+        ;FileDelete dict\dic_%dv%
+        ;FileAppend % dic_out, dict\dic_%dv%.dic
     }
     FileAppend % "`r`n;" A_TickCount-start "/" A_TickCount-ld_start, logs\transform.log
     start:=ld_start:=0
@@ -2400,8 +2401,7 @@ UpdateUserDict:
             If (us~="^\s*$") || (us~="^\s*;")
                 Continue
             user_dic.=us "`r`n"
-        }
-        
+        }        
         dict_time_old:=dict_time
     }
     Return 
@@ -2524,19 +2524,17 @@ Esc::Goto 8GuiClose
 <^RCtrl::
 >^LCtrl::
 AutocorrectToggle:
-    autocorrect:=!autocorrect
+    autocorrect:=!autocorrect, ih.Stop()
+    Menu Autocorrect, % autocorrect ? "Check" : "Uncheck", 1&
     If !autocorrect {
         ttip:=0
         ToolTip,,,, 10    
-    }
-    Else
-        ih.Stop()
-    Menu Autocorrect, % autocorrect ? "Check" : "Uncheck", 1&
+    }  
     Return
     
 <^<!RCtrl::
 SingleLangToggle:
-    single_lang:=!single_lang
+    single_lang:=!single_lang, ih.Stop()
     Menu Autocorrect, % single_lang ? "Check" : "Uncheck", 2&
     If !autocorrect && single_lang
         Goto AutocorrectToggle
