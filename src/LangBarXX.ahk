@@ -3,7 +3,8 @@
 #MaxHotkeysPerInterval 99999999
 #MaxThreadsPerHotkey 1
 #InstallKeybdHook
-#KeyHistory 100
+#KeyHistory 0
+ListLines Off
 SetWinDelay -1
 SetBatchLines -1
 CoordMode Caret
@@ -15,7 +16,7 @@ SetTitleMatchMode Slow
 Process Priority,, A
 FileEncoding UTF-8
 
-version:="1.4.0.8"
+version:="1.4.2"
 
 /*
 Использованы:
@@ -66,7 +67,7 @@ Else {
         Gosub USB-Version
 }
 If !FileExist(cfg_folder "\user_dict.dic")
-    FileAppend,, % cfg_folder "\user_dict.dic"
+    FileAppend,, % cfg_folder "\user_dict.dic",UTF-8
 
 SetTimer UpdateUserDict, 10000
 
@@ -164,8 +165,6 @@ IniRead mouse_click_ignore, % cfg, Autocorrect, Mouse_Click_Ignore, 0
 
 IniRead regexp_list, % cfg, Converter, Regexp_List, % " "
 
-If !FileExist(cfg)
-    Gosub Settings
 
 apps:=[]
 If FileExist(cfg) {
@@ -192,7 +191,7 @@ Else {
     }
     FileEncoding UTF-8
 }
-
+    
 SysGet MW, MonitorWorkArea
 SysGet monitors, MonitorCount
 dx_in:=(monitors>1) ? dx_in_2 : dx_in_1, dy_in:=(monitors>1) ? dy_in_2 : dy_in_1
@@ -433,7 +432,6 @@ If f_keys {
 
 Loop {
     ks:=[], ks_string:=text:=text_alt:=text_old:=""
-    ;ToolTip % ih.EndReason " " ih.EndKey " " ((ih.EndReason="Stopped") ? stop : ""), 400, 0, 7
     ih:=InputHook("I V", endkeys)
     ih.KeyOpt("{All}", "V N")
     ih.KeyOpt("{CapsLock}{NumLock}{LShift}{RShift}{LCtrl}{RCtrl}{LAlt}{RAlt}{AltGr}{BS}{Pause}", "-N")
@@ -457,10 +455,10 @@ KeyArray(hook, vk, sc) {
     vk:=Format("vk{:x}", vk), sc:=Format("sc{:x}", sc),
     ks.Push([prefix "{" sc "}", GetKeyState("CapsLock", "T")])
 
-    If ((print_win:=WinExist("A"))!=print_win_old)
-        mouse_click:=new_lang:=text_convert:=""    
-    If ((il:=InputLayout())!=il_old) && il_old && new_lang_ignore
-        new_lang:=1, key_name:=text_convert:="" 
+    If ((print_win:=WinExist("A"))!=print_win_old) 
+        mouse_click:=new_lang:=text_convert:=key_name:=""    
+    If ((il:=InputLayout())!=il_old) && (print_win=print_win_old) && print_win_old && il_old && new_lang_ignore
+        new_lang:=1
     il_old:=il, print_win_old:=print_win, wheel:=0
     
     If !autocorrect || (!single_lang && !(il~=lang_auto)) || (single_lang && !(il~=lang_auto_others) && lang_auto_others) || (single_lang && (il=lang_auto_single))
@@ -474,7 +472,7 @@ KeyArray(hook, vk, sc) {
     If (key_name~="^(Space|Tab|Enter|NumpadEnter)$")
         text_convert:=new_lang:=mouse_click:=text:=text_alt:=""
 
-    key_name:=GetKeyName(sc), ih_old:=ih.Input, last_symb:=SubStr(ih_old, 0), last_space:=(key_name~="^(Space|Tab|Enter|NumpadEnter)$") ? 1 : 0 
+    key_name:=GetKeyName(sc), ih_old:=ih.Input, last_symb:=SubStr(ih_old, 0), last_space:=(key_name~="^(Space|Tab|Enter|NumpadEnter)$") ? 1 : 0
     
     If last_space && str_length
         Goto End
@@ -547,7 +545,7 @@ KeyArray(hook, vk, sc) {
         BlockInput On
         Loop % str_length
             SendInput % "{BS down}{BS up}"
-        SetInputLang(key_switch, lconvert)
+        SetInputLang(1, lconvert)
         out_orig:=ks.Clone(), ks:=[]
         SendText(out_orig)
         SendText(ks)
@@ -560,7 +558,7 @@ KeyArray(hook, vk, sc) {
 
 TrayTip:
     TrayTip
-    If SubStr(A_OSVersion,1,3) = "10." {
+    If (A_OSVersion~="^10") {
         Menu Tray, NoIcon
         Sleep 200
         Menu Tray, Icon
@@ -584,38 +582,62 @@ DelAccent(txt) {
         Return StrUnmark(txt)
 }
 
+
 #If autocorrect && text_convert && ctrlz_undo
 ^vk5A up::
     KeyWait Ctrl, T1
+    Goto Rollback
 #If
 
-+Pause up::
-    KeyWait RShift, T1
-<+BS up::
-    KeyWait LShift, T1
-    If autocorrect && text_convert {
-        If sound
-            SoundPlay *16
-        If tray_tip {
-            TrayTip
-            If (A_OSVersion~="^10\.") {
-                Menu Tray, NoIcon
-                Sleep 200
-                Menu Tray, Icon
-            }
-        }
-        out_orig.Push(ks*)
-        Loop % out_orig.Length()
-            SendInput % "{BS down}{BS up}"
-        SetInputLang(1, il_convert)
-        Sleep 5
-        SendText(out_orig)
-        If (A_ThisHotkey~="\+")
-            Send {Shift up}
-        FileAppend % "`r`n" t0 "/" t0_alt, logs\undo.log        
-        FileAppend % " <==", logs\transform.log
-        text_convert:="", ih.Stop(), out_orig:=[]
+Pause::
+    If text_convert {
+        KeyWait Pause, T1
+        Goto Rollback
     }
+    Else If !((InputLayout()~=pause_langs) && pause_langs)
+        Return
+    Else
+        Goto Translate
+
++BS::
+    If text_convert {
+        KeyWait Shift, T1
+        KeyWait BS, T1
+        Goto Rollback
+    }
+    Else If !((InputLayout()~=shift_bs_langs) && shift_bs_langs)
+        Return
+    Else
+        Goto Translate
+
+Rollback:
+    If sound
+        SoundPlay *16
+    If tray_tip {
+        TrayTip
+        If (A_OSVersion~="^10\.") {
+            Menu Tray, NoIcon
+            Sleep 200
+            Menu Tray, Icon
+        }
+    }
+    out_orig.Push(ks*)
+    Loop % out_orig.Length()
+        SendInput % "{BS down}{BS up}"
+    SetInputLang(1, il_convert)
+    Sleep 5
+    SendText(out_orig)
+    If (A_ThisHotkey~="\+")
+        Send {Shift up}
+    FileAppend % "`r`n" t0 "/" t0_alt, logs\undo.log        
+    FileAppend % " <==", logs\transform.log
+    text_convert:="", ih.Stop(), out_orig:=[]
+    Return
+    
+#If
+
+~BS::
+    ih.Stop(), text_convert:=new_lang:=mouse_click:=key_name:=""
     Return
 
 Select:
@@ -691,6 +713,7 @@ Select:
     flag_block:=0
     SetTimer ResetButtons, -1000
     Sleep 100
+    out_orig:=out.Clone(), il_convert:=InputLayout(), text_convert:=1
     Return
 
 ResetButtons:
@@ -769,9 +792,6 @@ InvertCase(t) {
     SetInputLang(1, 0x0409)
     Return
 
-#If (InputLayout()~=pause_langs) && pause_langs
-Pause::Goto Translate
-
 OnFlag(hwnd) {
     MouseGetPos,,, win, ctrl
     Return (win && (win=hwnd) && (ctrl~="Static")) ? 1 : 0
@@ -792,16 +812,9 @@ MButton::
 CapsLock::
     Gosub Translate
     SetCapsLockState AlwaysOff
-    Return    
-#If
-
->+BS::
-If (InputLayout()~=shift_bs_langs) && shift_bs_langs
-    Goto Translate
-Return
+    Return 
 
 Translate:
-    Critical
     Gosub Select
     If hand_sel
         Gosub Convert
@@ -858,7 +871,7 @@ SetInputLang:
     }
     If (hkey~="^(RButton|Pause)$") || ((hkey="Capslock") && (capslock=3))
         target:=(lang_start=_pause_langs[1]) ? _pause_langs[2] : _pause_langs[1]
-    If (hkey=">+BS")
+    If (hkey="+BS")
         target:=(lang_start=_shift_bs_langs[1]) ? _shift_bs_langs[2] : _shift_bs_langs[1]
     SetInputLang(key_switch, Format("{:#.4x}", target))
     Sleep 200
@@ -867,6 +880,8 @@ SetInputLang:
 
 #If lshift && !key_block    
 LShift up::
+    Sleep 10
+    Send {LShift up}
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
     If (A_TickCount-lang_change_time<1000)
@@ -878,6 +893,8 @@ LShift up::
 
 #If rshift && !key_block
 RShift up::
+    Sleep 10
+    Send {RShift up}
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
     If (A_TickCount-lang_change_time<1000)
@@ -888,6 +905,8 @@ RShift up::
 
 #If lctrl && !key_block
 LCtrl up::
+    Sleep 10
+    Send {LCtrl up}
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
     If (A_TickCount-lang_change_time<1000)
@@ -898,6 +917,8 @@ LCtrl up::
 
 #If rctrl && !key_block
 RCtrl up::
+    Sleep 10
+    Send {RCtrl up}
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
     If (A_TickCount-lang_change_time<1000)
@@ -943,9 +964,12 @@ CapsLock::
     ih.Stop(), stop:="Mouse"
     If GetCaretLocation()
         wheel:=x_wheel:=y_wheel:=0
-    If (WinExist("A")=print_win)
-        mouse_click:=1, key_name:=text_convert:=""
-    print_win:=WinExist("A")
+    MouseGetPos,,, new_win
+    If (new_win=print_win)
+        mouse_click:=1
+    Else
+        new_lang:=""
+    print_win:=new_win, text_convert:=key_name:=""
     Return
 
 ~*WheelUp::
@@ -1447,6 +1471,7 @@ TrayIcon:
     If ttip1 {
         ToolTip % "sl/ksl: " str_length "/" ks.Length() " rs: " rs " tc/nl/mc: " text_convert "/" new_lang "/" mouse_click " ls: " last_space, 250, 0, 12
         Tooltip % ">" t0 "<>" t1 "<ls: " last_space " kn: " key_name "`n>" t0_alt "<>" t2 "<", 550, 0, 13
+        ;ToolTip % ih.EndReason " " ih.EndKey " " ((ih.EndReason="Stopped") ? stop : ""), 700, 0, 14
     }
     lang:=InputLayout(), lang:=lang ? lang : lang_old
     If (lang!=lang_old)
@@ -1491,7 +1516,7 @@ TrayIcon:
             Return
         }
         Sleep 5
-        Menu Tray, Icon, hicon:*%IconHandle%,, 1
+        Menu Tray, Icon, hicon:%IconHandle%,, 1
         Gdip_DisposeImage(pMem)
         Gdip_DeleteGraphics(T)
         lang_old:=lang, num_old:=num, scr_old:=scr, autocorrect_old:=autocorrect, single_lang_old:=single_lang
@@ -2757,3 +2782,4 @@ Statistics:
         MsgBox,, Статистика, % "Среднее время загрузки программы: " lpr/nl " mc`nИз них загрузки словарей: " ldt/nl " mc`n`nСреднее время обработки нажатий клавиш: " res2_all/tr " mc`nСреднее время преобразования текста: " res3_all/tr " mc`n`nСредняя длина преобразованного текста: " Format("{:.3}", res1_all/tr) "`nМаксимальная длина преобразованного текста: " max "`nЧисло преобразований: " tr "`nЧисло отмен преобразований: " res4_all " (" Format("{:.2}", res4_all/tr*100) " %)"
     }
     Return
+
