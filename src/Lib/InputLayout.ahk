@@ -9,7 +9,7 @@
 		DllCall("GetConsoleKeyboardLayoutName", Str, langID),
 		DllCall("FreeConsole")
 	}
-    Else If (Class=="ApplicationFrameWindow") {
+    Else If (Class~="(ApplicationFrameWindow|DocEditorsWindowClass)") || (WinActive("ahk_exe notepad.exe") && (A_OSVersion~="10\.0\.2")) {
         SetFormat Integer, H
         ControlGetFocus Focused, A
         ControlGet CtrlID, Hwnd,, % Focused, A
@@ -23,5 +23,5 @@
 		langID:=DllCall("GetKeyboardLayout", UInt, ThreadID, UInt)
 		SetFormat Integer, D
 	}
-	Return Format("{:#.4x}", "0x" SubStr(langID, -3))
+	Return "0x" SubStr(langID, -3)
 }
