@@ -17,7 +17,7 @@ SetTitleMatchMode Slow
 Process Priority,, A
 FileEncoding UTF-8
 
-version:="1.4.4"
+version:="1.4.4.2"
 
 /*
 Использованы:
@@ -89,7 +89,10 @@ If FileExist(cfg) {
     IniDelete % cfg, Indicator, DX_In
     IniDelete % cfg, Indicator, DY_In
     IniDelete % cfg, Layouts, pause
-    IniDelete % cfg, Layouts, shift_bs    
+    IniDelete % cfg, Layouts, shift_bs
+    IniRead old_version, % cfg, Main, Version, 0
+    If (old_version!=version)
+        IniWrite 0, % cfg, Layouts, Key_Switch
 }
 
 ;================================
@@ -128,7 +131,7 @@ IniRead scrolllock_icon_in, % cfg, Indicator, ScrollLock_Icon_In, 1
 IniRead pause_langs, % cfg, Layouts, Pause_Langs, % "(0x0409|0x0419)"
 IniRead shift_bs_langs, % cfg, Layouts, Shift_BS_Langs, % "(0x0409|0x0419)"
 IniRead pause_shift_bs, % cfg, Layouts, Pause_Shift_BS, 0
-IniRead key_switch, % cfg, Layouts, Key_Switch, 1
+IniRead key_switch, % cfg, Layouts, Key_Switch, 0
 IniRead lang_select, % cfg, Layouts, Lang_Select, 3
 IniRead lctrl, % cfg, Layouts, LCtrl, 0
 IniRead rctrl, % cfg, Layouts, RCtrl, 0
@@ -170,7 +173,7 @@ IniRead regexp_list, % cfg, Converter, Regexp_List, % " "
 
 IniRead font_size, % cfg, TextFlags, Font_Size, 36
 IniRead bold, % cfg, TextFlags, Bold, 1
-IniRead font_size, % cfg, TextFlags, Font_Size, 36
+IniRead font_size, % cfg, TextFlags, Font_Size, 38
 IniRead font_color, % cfg, TextFlags, Font_Color, EEEEEE
 IniRead radius, % cfg, TextFlags, Radius, 10
 IniRead gradient, % cfg, TextFlags, Gradient, 16
@@ -533,7 +536,8 @@ KeyArray(hook, vk, sc) {
     }
 
     If ((last_space && str_length) || (str_length>(min_length ? 2 : 1))) && t2 && !t1 {
-        KeyWait % sc, T0.3
+        Critical On
+        ih.VisibleText:=False
         lconvert:=single_lang ? lang_auto_single : ((il=auto1) ? auto2 : auto1)
         If sound
             SoundPlay *64
@@ -543,18 +547,18 @@ KeyArray(hook, vk, sc) {
         }
         If str_length && ((ks.Length()-str_length)>0)
             ks.RemoveAt(1, ks.Length()-str_length) 
-        text_convert:=last_space ? 0 : 1, il_convert:=il, ts:=A_TickCount, keys:=ts-tstart
-        BlockInput On
+        il_convert:=il, ts:=A_TickCount, keys:=ts-tstart
         Loop % str_length
             SendInput % "{BS down}{BS up}"
-        SetInputLang(1, lconvert)
+        SetInputLang(key_switch, lconvert)
         Sleep 50
         out_orig:=ks.Clone(), ks:=[]
         SendText(out_orig)
         SendText(ks)
         out_orig.Push(ks*)
-        BlockInput Off
-        il_old:=InputLayout(), ih.Stop()
+        ih.VisibleText:=True
+        Critical Off
+        il_old:=InputLayout(), ih.Stop(), text_convert:=1
         FileAppend % "`r`n" t0 "/" t0_alt " - "  keys "/" A_TickCount-ts, logs\transform.log
     }       
 }
@@ -622,7 +626,7 @@ Rollback:
     out_orig.Push(ks*)
     Loop % out_orig.Length()
         SendInput % "{BS down}{BS up}"
-    SetInputLang(1, il_convert)
+    SetInputLang(key_switch, il_convert)
     Sleep 5
     SendText(out_orig)
     If (A_ThisHotkey~="\+")
@@ -728,12 +732,12 @@ ReConvert:
             continue
         If (vk~="vkfff") {
             If (lang_count=2) && (A_ThisLabel="Convert") && (button~="(Pause|BS|RButton|CapsLock)") {
-                SetInputLang(1)
+                SetInputLang(key_switch)
                 Goto Reconvert
             }
             ToolTip Неверная`nраскладка!,  % x-40, % y-50
             SetTimer ToolTip, -2000
-            SetInputLang(1, lang_start)
+            SetInputLang(key_switch, lang_start)
             Exit
         }
         sh:=(vk~="vk1\w\w") ? 1 : 0, sc:=Format("sc{:x}", GetKeySC(RegExReplace(vk,"vk\K\d(?=\w\w)")))
@@ -744,7 +748,7 @@ ReConvert:
 >^scD::
     Gosub Select
     SendText(InvertCase(sel))
-    SetInputLang(1, lang_start)
+    SetInputLang(key_switch, lang_start)
     Return
 
 InvertCase(t) {
@@ -763,25 +767,25 @@ InvertCase(t) {
 >^scC::
     Gosub Select
     SendText(Format("{:L}",sel))
-    SetInputLang(1, lang_start)
+    SetInputLang(key_switch, lang_start)
     Return
 
 >^scB::
     Gosub Select
     SendText(Format("{:U}",sel))
-    SetInputLang(1, lang_start)
+    SetInputLang(key_switch, lang_start)
     Return
 
 >^scA::
     Gosub Select
     SendText(Format("{:T}",sel))
-    SetInputLang(1, lang_start)
+    SetInputLang(key_switch, lang_start)
     Return
 
 >^sc1B::
     Gosub Select
     SendText(Translit(sel))
-    SetInputLang(1, 0x0409)
+    SetInputLang(key_switch, 0x0409)
     Return
 
 OnFlag(hwnd) {
@@ -841,7 +845,7 @@ SetInputLang:
                     ln:=A_Index
             target:=(ln>1) ? lang_array[ln-1, 1] : lang_array[lang_count, 1]
         }
-        SetInputLang(1, target)
+        SetInputLang(key_switch, target)
         Return
     }
     If (A_ThisHotkey~="^<\^sc\d+$") || (A_ThisHotkey~="^<!sc\d+$") { ; LCtr+#, LAlt+#
@@ -850,7 +854,7 @@ SetInputLang:
         KeyWait LCtrl, T1
         KeyWait LAlt, T1
         Sleep 100
-        SetInputLang(1, target)
+        SetInputLang(key_switch, target)
         Return
     }
     If (hkey~="^>\^F\d+$") || (hkey~="^>\+F\d+$")
@@ -933,7 +937,7 @@ CapsLock::Return
 
 #If (capslock=2)
 CapsLock::
-    SetInputLang(1)
+    SetInputLang(key_switch)
     KeyWait CapsLock, T1
     SetCapsLockState AlwaysOff
     Return
@@ -1294,7 +1298,7 @@ LangBar:
     Sleep 50
     Send !{Esc}
     Sleep 150
-    SetInputLang(1)
+    SetInputLang(key_switch)
     ih.Stop()
     SetTimer TrayIcon, On
     Sleep 100 ; !!!!!!
@@ -1351,7 +1355,7 @@ IndicatorToggle:
 
 #If OnFlag(IndHwnd) && lang_switcher
 LButton::
-    SetInputLang(1)
+    SetInputLang(key_switch)
     ih.Stop()
     Return
 #If
@@ -1367,7 +1371,7 @@ LButton::
     Return
     
 LButton::
-    SetInputLang(1)
+    SetInputLang(key_switch)
     ih.Stop()
     Return
     
@@ -1803,7 +1807,7 @@ LayoutsAndFlags:
         If (lang_menu_s[A_Index]=lang_auto_single)
             lang_auto_single_sel:=A_Index
     If (A_TickCount<120000) && (A_OSVersion~="^10")
-        SetInputLang(0, lang_array[1, 1])
+        SetInputLang(key_switch, lang_array[1, 1])
     If !(A_ThisMenuItem="Раскладки и флажки")
         Return
     LV_ModifyCol(1, "AutoHdr Center")

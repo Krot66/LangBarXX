@@ -1,5 +1,13 @@
 ﻿SetInputLang(key_switch, target="") {
     Critical
+    Global lang_array
+    If !target {
+        Loop % lang_array.Length()
+            If (InputLayout()=lang_array[A_Index, 1]) {
+                target:=(A_Index<lang_array.Length()) ? lang_array[A_Index+1, 1] : lang_array[1, 1]                
+                Break               
+            }
+    }        
     id:=WinExist("A"), target:=Format("{:#.4x}", target), start:=InputLayout(), ks_start:=A_TickCount
     StringCaseSense Off
     If (target=start)
@@ -27,8 +35,8 @@
                 lcount++
                 Sleep 10
             }
-            new:=InputLayout()
-            If !target || (new=target)  || (new=start)
+           
+            If (InputLayout()=start)
                 Break
             Loop Parse, bs, CSV
                 If GetKeyState(A_LoopField)
