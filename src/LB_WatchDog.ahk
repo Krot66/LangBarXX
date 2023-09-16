@@ -7,6 +7,8 @@ EnvSet __COMPAT_LAYER, RUNASINVOKER
 If !(run_file:=A_Args[1]) || !FileExist(run_file)
 	ExitApp
 
+Sleep 10000
+
 Loop {
 	Sleep 1000
 	Process Exist, % run_file

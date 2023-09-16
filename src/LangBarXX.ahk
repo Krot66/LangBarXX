@@ -2,6 +2,7 @@
 #SingleInstance Force
 #MaxHotkeysPerInterval 99999999
 #MaxThreadsPerHotkey 1
+#MaxMem 150
 #InstallKeybdHook
 #KeyHistory % A_IsCompiled ? 0 : 40
 If A_IsCompiled
@@ -17,7 +18,7 @@ SetTitleMatchMode Slow
 Process Priority,, A
 FileEncoding UTF-8
 
-version:="1.4.4.2"
+version:="1.4.6"
 
 /*
 Использованы:
@@ -90,6 +91,7 @@ If FileExist(cfg) {
     IniDelete % cfg, Indicator, DY_In
     IniDelete % cfg, Layouts, pause
     IniDelete % cfg, Layouts, shift_bs
+    IniDelete % cfg, Autocorrect, ctrlz_undo
     IniRead old_version, % cfg, Main, Version, 0
     If (old_version!=version)
         IniWrite 0, % cfg, Layouts, Key_Switch
@@ -159,9 +161,8 @@ IniRead min_length, % cfg, Autocorrect, Min_Length, 1
 IniRead sound, % cfg, Autocorrect, Sound, 1
 IniRead tray_tip, % cfg, Autocorrect, Tray_Tip, 0
 IniRead accent_ignore, % cfg, Autocorrect, Accent_Ignore, 1
-IniRead ctrlz_undo, % cfg, Autocorrect, CtrlZ_Undo, 1
 IniRead no_indicate, % cfg, Autocorrect, No_Indicate, 0
-IniRead abbr_ignore, % cfg, Autocorrect, Abbr_Ignore, 1
+IniRead abbr_ignore, % cfg, Autocorrect, Abbr_Ignore, 2
 IniRead short_abbr_ignore, % cfg, Autocorrect, Short_Abbr_Ignore, 1
 IniRead word_margins_enabled, % cfg, Autocorrect, Word_Margins_Enabled, 0
 IniRead word_margins, % cfg, Autocorrect, Word_Margins, % "(,|,\,/,_,=,+"
@@ -171,15 +172,14 @@ IniRead mouse_click_ignore, % cfg, Autocorrect, Mouse_Click_Ignore, 0
 
 IniRead regexp_list, % cfg, Converter, Regexp_List, % " "
 
-IniRead font_size, % cfg, TextFlags, Font_Size, 36
 IniRead bold, % cfg, TextFlags, Bold, 1
-IniRead font_size, % cfg, TextFlags, Font_Size, 38
+IniRead font_size, % cfg, TextFlags, Font_Size, 40
 IniRead font_color, % cfg, TextFlags, Font_Color, EEEEEE
 IniRead radius, % cfg, TextFlags, Radius, 10
-IniRead gradient, % cfg, TextFlags, Gradient, 16
+IniRead gradient, % cfg, TextFlags, Gradient, 20
 
 _radius:=64*radius//100, _bold:=bold ? "Bold" : ""
-default_colors:=[0x003FA5, 0xBF0000, 0x406300, 0x994A03, 0xC632A1, 0x1B7785, 0x444444, 0x8201D8, 0x003FA5, 0xBF0000, 0x406300, 0x994A03, 0xC632A1, 0x1B7785, 0x444444, 0x8201D8]
+default_colors:=[0x003FA5, 0xBF003F, 0x406300, 0x994A03, 0xC632A1, 0x1B7785, 0x444444, 0x8201D8]
 
 apps:=[]
 If FileExist(cfg) {
@@ -396,7 +396,6 @@ Gosub FlagGui
 Gosub IndicatorGui
 Gosub Masks
 
-
 lang_old:=lang_array[1,1]
 SetTimer TrayIcon, 100
 Sleep 500
@@ -439,10 +438,14 @@ Loop {
     ks:=[], ks_string:=text:=text_alt:=text_old:=""
     ih:=InputHook("I V", endkeys)
     ih.KeyOpt("{All}", "V N")
-    ih.KeyOpt("{CapsLock}{NumLock}{LShift}{RShift}{LCtrl}{RCtrl}{LAlt}{RAlt}{AltGr}{BS}{Pause}", "-N")
+    ih.KeyOpt("{CapsLock}{NumLock}{LShift}{RShift}{LCtrl}{RCtrl}{LAlt}{RAlt}{AltGr}{Pause}", "-N")
     ih.OnKeyDown:=Func("KeyArray")
     ih.Start()
     ih.Wait()
+    If (ih.EndKey~="(Tab|Enter|NumpadEnter)")
+        key_name:=ih.EndKey
+    If (ih.EndKey~="(Enter|BS)$")
+        text_convert:=new_lang:=mouse_click:=""
 }
 
 KeyArray(hook, vk, sc) {
@@ -475,7 +478,7 @@ KeyArray(hook, vk, sc) {
     dic_curr:=dic_%il%, dic_alt:=dic_%alt_lang%
 
     If (key_name~="^(Space|Tab|Enter|NumpadEnter)$")
-        text_convert:=new_lang:=mouse_click:=text:=text_alt:=""
+        text_convert:=new_lang:=mouse_click:=text:=text_alt:="", out_orig:=[]
 
     key_name:=GetKeyName(sc), ih_old:=ih.Input, last_symb:=SubStr(ih_old, 0), last_space:=(key_name~="^(Space|Tab|Enter|NumpadEnter)$") ? 1 : 0
     
@@ -558,7 +561,7 @@ KeyArray(hook, vk, sc) {
         out_orig.Push(ks*)
         ih.VisibleText:=True
         Critical Off
-        il_old:=InputLayout(), ih.Stop(), text_convert:=1
+        ih.Stop(), il_old:=InputLayout(), text_convert:=1
         FileAppend % "`r`n" t0 "/" t0_alt " - "  keys "/" A_TickCount-ts, logs\transform.log
     }       
 }
@@ -589,13 +592,13 @@ DelAccent(txt) {
         Return StrUnmark(txt)
 }
 
-#If (InputLayout()~=pause_langs) && pause_langs && !(autocorrect && text_convert)
+#If (InputLayout()~=pause_langs) && pause_langs && !(autocorrect && text_convert && out_orig.Length())
 Pause::Goto Translate
 
-#If (InputLayout()~=shift_bs_langs) && shift_bs_langs && !(autocorrect && text_convert)
+#If (InputLayout()~=shift_bs_langs) && shift_bs_langs && !(autocorrect && text_convert && out_orig.Length())
 +BS::Goto Translate
 
-#If autocorrect && text_convert && ctrlz_undo
+#If text_convert
 ^vk5A up::
     KeyWait Ctrl, T1
         Goto Rollback
@@ -603,14 +606,22 @@ Pause::Goto Translate
 
 #If !(WinActive("ahk_class VMPlayerFrame") || WinActive("ahk_exe VirtualBox.exe") || WinActive("ahk_exe VirtualBoxVM.exe"))
 Pause::
+    KeyWait Pause
 +BS::
-    If autocorrect && text_convert {
+    If autocorrect && text_convert && out_orig.Length() {
         KeyWait BS
-        KeyWait Pause
         Goto Rollback
     }
     Return
 #If
+
+;#If text_convert
+;^vk5A up::
+    ;KeyWait Ctrl, T1
+        ;Goto Rollback
+    ;Return
+
+;#If
 
 Rollback:
     If sound
@@ -1273,7 +1284,6 @@ Settings:
     IniWrite % sound, % cfg, Autocorrect, Sound
     IniWrite % tray_tip, % cfg, Autocorrect, Tray_Tip
     IniWrite % accent_ignore, % cfg, Autocorrect, Accent_Ignore
-    IniWrite % ctrlz_undo, % cfg, Autocorrect, CtrlZ_Undo
     IniWrite % no_indicate, % cfg, Autocorrect, No_Indicate
     IniWrite % abbr_ignore, % cfg, Autocorrect, Abbr_Ignore
     IniWrite % short_abbr_ignore, % cfg, Autocorrect, Short_Abbr_Ignore
@@ -1296,7 +1306,9 @@ LangBar:
     Gui Destroy
     KeyWait LButton, T1
     Sleep 50
-    Send !{Esc}
+    WinActivate ahk_id %last_lang_win%
+    ;MsgBox %last_lang_win%
+    
     Sleep 150
     SetInputLang(key_switch)
     ih.Stop()
@@ -1472,13 +1484,16 @@ Masks:
 TrayIcon:
     If ttip1 {
         ToolTip % "sl/ks: " str_length "/" ks.Length() " rs: " rs " tc/nl/mc: " text_convert "/" new_lang "/" mouse_click " ls: " last_space, 250, 0, 12
-        Tooltip % ">" t0 "<>" t1 "<ls: " last_space " kn: " key_name "`n>" t0_alt "<>" t2 "<", 550, 0, 13
+        Tooltip % ">" t0 "<>" t1 "<ls: " last_space " kn: " key_name "`n>" t0_alt "<>" t2 "<", 600, 0, 13
         ;ToolTip % ih.EndReason " " ih.EndKey " " ((ih.EndReason="Stopped") ? stop : ""), 700, 0, 14
     }
-    lang:=InputLayout(), lang:=lang ? lang : lang_old
+
+    WinGetClass cl, A
+    If (lang:=InputLayout()) && !(cl~="Shell_TrayWnd")
+        last_lang_win:=WinExist("A")
+    lang:=lang ? lang : lang_old
     If (lang!=lang_old)
         lang_change_time:=A_TickCount
-    WinGetClass cl, A
     If (cl="#32768")
         Return
     If upd
@@ -1572,6 +1587,15 @@ Indicator:
             GuiControl,, %IndID%, *w%w_in% *h-1 hbitmap:*%IndicatorHandle%
             Gui 11:Show, x%x_in% y%y_in% NA
             WinSet Top,, ahk_id %IndHwnd%            
+            Gui IndHwnd:Default
+            If autocorrect && !no_indicate {
+                au_h1:=Round(w_in*.4), AinHandle:=single_lang ? SingleLangHandle : AutocorrectHandle
+                GuiControl,, % IndAutocorrectID, *w%au_h1% *h%au_h1% hbitmap:*%AinHandle%
+                GuiControl MoveDraw, % IndAutocorrectID, % "x" Round(w_in*.34) "y" Round(w_in*.8)
+                GuiControl Show, % IndAutocorrectID
+            }
+            Else
+                GuiControl Hide, % IndAutocorrectID
             If caps {
                 GuiControl,, %IndCapsID%, *w%w_in% *h%h_in% hbitmap:*%CapsHandle%
                 GuiControl Move, % IndCapsID, % "x" w_in//5 "y" w_in-h_in+w_in//6
@@ -1579,15 +1603,6 @@ Indicator:
             }
             Else
                 GuiControl Hide, % IndCapsID
-            Gui IndHwnd:Default
-            If autocorrect && !no_indicate {
-                au_h1:=w_in*.4, AinHandle:=single_lang ? SingleLangHandle : AutocorrectHandle
-                GuiControl,, % IndAutocorrectID, *w%au_h1% *h%au_h1% hbitmap:*%AinHandle%
-                GuiControl MoveDraw, % IndAutocorrectID, % "x" w_in*.34 "y" w_in*.8
-                GuiControl Show, % IndAutocorrectID
-            }
-            Else
-                GuiControl Hide, % IndAutocorrectID
             If indicator && !WinExist("ahk_id" IndHwnd)
                 Gosub IndicatorGui
             lang_in_old:=lang, width_in_old:=width_in, caps_in_old:=caps, num_in_old:=num, scr_in_old:=scr, upd:=0, autocorrect_in_old:=autocorrect, single_lang_in_old:=single_lang
@@ -1655,9 +1670,9 @@ Flag:
         GuiControlGet caps_vis, Visible, % CapsID
         GuiControlGet au_vis, Visible, % AutocorrectID
         If (autocorrect && !au_vis && !no_indicate) || (single_lang_fl_old!=single_lang) || (width!=width_old) {
-            au_h:=width*.4, Afl:=single_lang ? SingleLangHandle : AutocorrectHandle
+            au_h:=Round(width*.4), Afl:=single_lang ? SingleLangHandle : AutocorrectHandle
             GuiControl,, % AutocorrectID, *w%au_h% *h%au_h% hbitmap:*%Afl%
-            GuiControl Move, % AutocorrectID, % "x" width*.4 "y" fl_h*.8
+            GuiControl Move, % AutocorrectID, % "x" Round(width*.32) "y" Round(fl_h*.8)
             GuiControl Show, % AutocorrectID
         }
         If !autocorrect || no_indicate
@@ -1665,7 +1680,7 @@ Flag:
             
         If (caps && !caps_vis) || (width!=width_old) {
             GuiControl,, % CapsID, *w%width% *h%fl_h% hbitmap:*%CapsHandle%
-            GuiControl Move, % CapsID, % "x" width//5 "y" width//6
+            GuiControl Move, % CapsID, % "x" width//5 "y" width//5
             GuiControl Show, % CapsID
         }
         If !caps
@@ -1718,15 +1733,15 @@ LayoutsAndFlags:
         If !FileExist(kl_flag)
             t_%lhex%:=1
         If t_%lhex% {
-            pFlag:=Gdip_CreateBitmap(64, 48)
+            pFlag:=Gdip_CreateBitmap(66, 50)
             T:=Gdip_GraphicsFromImage(pFlag)
             Gdip_SetSmoothingMode(I, 4)
             Gdip_SetInterpolationMode(I, 2)
             Brush:=Gdip_CreateLineBrushFromRect(0, 0, 12, 48, "0xff" Brightness(c_%lhex%, gradient), "0xff" c_%lhex%)
             Gdip_FillRoundedRectangle(T, Brush, 0, 0, 64, 48, _radius)
             Gdip_DeleteBrush(Brush)
-            Options=x-4 y4 Center vCenter %_bold% cff%font_color% r4 s%font_size%
-            Gdip_TextToGraphics(T, lt, Options, "Arial", 72, 48)
+            Options=x-8 y-2 Center vCenter %_bold% cff%font_color% r4 s%font_size%
+            Gdip_TextToGraphics(T, lt, Options, "Arial", 80, 60)
             Handle:=Gdip_CreateHICONFromBitmap(pFlag)           
             Gdip_DeleteGraphics(T)          
         }
@@ -2492,15 +2507,14 @@ Autocorrect:
     Gui 8:Font, s9
     Gui 8:Add, CheckBox, x28 section vsound, Звук при автопереключении и отмене
     Gui 8:Add, CheckBox, xs vtray_tip, Уведомление при автопереключении
-    Gui 8:Add, CheckBox, xs vctrlz_undo, Отмена преобразования по Ctrl+Z
     Gui 8:Add, CheckBox, xs vno_indicate, Выключение индикации на флажке
     Gui 8:Add, GroupBox, x12 w380 h98, Языки автопереключения
     Gui 8:Add, DropDownList, vlang_auto_i x60 yp+28 w288 Choose%lang_auto_sel% AltSubmit, % lang_set_auto
     Gui 8:Add, CheckBox, x28 y+8 section vonly_main_dict, Только основной словарь
-    Gui 8:Add, GroupBox, x12 w380 h186, Режим одного языка
+    Gui 8:Add, GroupBox, x12 w380 h216, Режим одного языка
     Gui 8:Add, DropDownList, vlang_auto_i2 gAcupdate x60 yp+28 w288 Choose%lang_auto_single_sel% AltSubmit, % lang_menu_single
     Gui 8:Add, Text, xp y+8, Языки автопереключения:
-    Gui 8:Add, ListView, -Hdr Grid r3 Checked w288 x60 yp+28, #|Layout
+    Gui 8:Add, ListView, -Hdr Grid r4 Checked w288 x60 yp+28, #|Layout
     row_numb:=0
     Loop % lang_array.Length() {
         row_numb++
@@ -2542,7 +2556,6 @@ Autocorrect:
     GuiControl,, sound, % sound
     GuiControl,, tray_tip, % tray_tip
     GuiControl,, accent_ignore, % accent_ignore
-    GuiControl,, ctrlz_undo, % ctrlz_undo
     GuiControl,, no_indicate, % no_indicate
     GuiControl,, abbr_ignore, % (abbr_ignore=1) ? 1 : 0 
     GuiControl,, % r2, % (abbr_ignore=2) ? 1 : 0 
