@@ -44,6 +44,7 @@ Source: "flags\*"; DestDir: "{app}\flags"; Flags: ignoreversion
 Source: "masks\*"; DestDir: "{app}\masks"; Flags: ignoreversion
 Source: "doc\*"; DestDir: "{app}\doc"; Flags: ignoreversion recursesubdirs
 Source: "dict\*"; DestDir: "{app}\dict"; Flags: ignoreversion recursesubdirs
+Source: "hunspell\*"; DestDir: "{app}\hunspell"; Flags: ignoreversion
 Source: "editor\*"; DestDir: "{app}\editor"; Flags: ignoreversion recursesubdirs
 Source: "{src}\flags\*"; DestDir: "{app}\flags"; Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{src}\masks\*"; DestDir: "{app}\masks"; Flags: external skipifsourcedoesntexist ignoreversion

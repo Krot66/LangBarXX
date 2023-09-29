@@ -4,11 +4,11 @@
 #MaxThreadsPerHotkey 1
 #MaxMem 150
 #InstallKeybdHook
-#KeyHistory % A_IsCompiled ? 0 : 40
+#KeyHistory 0
 If A_IsCompiled
     ListLines Off
-SetWinDelay -1
 SetBatchLines -1
+SetWinDelay 20
 CoordMode Caret
 CoordMode Tooltip
 CoordMode Mouse
@@ -16,15 +16,15 @@ SetWorkingDir %A_ScriptDir%
 SetTitleMatchMode 2
 SetTitleMatchMode Slow
 Process Priority,, A
-FileEncoding UTF-8
 
-version:="1.4.6"
+version:="1.4.8"
 
 /*
 Использованы:
 Начальный код отображения флажка Irbis http://forum.script-coding.com/viewtopic.php?id=10392&p=3
 Gdip library by Tic    
 Acc Standard Library by Sean
+Hunspell Spell library - majkinetor, jballi
 FileGetInfo and StrUnmark by Lexicos
 ChooseColor - iPhilip 
 */
@@ -91,7 +91,9 @@ If FileExist(cfg) {
     IniDelete % cfg, Indicator, DY_In
     IniDelete % cfg, Layouts, pause
     IniDelete % cfg, Layouts, shift_bs
-    IniDelete % cfg, Autocorrect, ctrlz_undo
+    IniDelete % cfg, Autocorrect, accent_ignore    
+    IniDelete % cfg, Autocorrect, abbr_ignore
+    IniDelete % cfg, Autocorrect, short_abbr_ignore
     IniRead old_version, % cfg, Main, Version, 0
     If (old_version!=version)
         IniWrite 0, % cfg, Layouts, Key_Switch
@@ -160,15 +162,15 @@ IniRead lang_auto_others, % cfg, Autocorrect, Lang_Auto_Others, % " "
 IniRead min_length, % cfg, Autocorrect, Min_Length, 1
 IniRead sound, % cfg, Autocorrect, Sound, 1
 IniRead tray_tip, % cfg, Autocorrect, Tray_Tip, 0
-IniRead accent_ignore, % cfg, Autocorrect, Accent_Ignore, 1
 IniRead no_indicate, % cfg, Autocorrect, No_Indicate, 0
-IniRead abbr_ignore, % cfg, Autocorrect, Abbr_Ignore, 2
-IniRead short_abbr_ignore, % cfg, Autocorrect, Short_Abbr_Ignore, 1
+IniRead letter_ignore, % cfg, Autocorrect, Letter_Ignore, 0
+IniRead ctrlz_undo, % cfg, Autocorrect, Ctrlz_Undo, 1
 IniRead word_margins_enabled, % cfg, Autocorrect, Word_Margins_Enabled, 0
 IniRead word_margins, % cfg, Autocorrect, Word_Margins, % "(,|,\,/,_,=,+"
 IniRead digit_borders, % cfg, Autocorrect, Digit_Borders, 0
 IniRead new_lang_ignore, % cfg, Autocorrect, New_Lang_Ignore, 0
 IniRead mouse_click_ignore, % cfg, Autocorrect, Mouse_Click_Ignore, 0
+IniRead backspace_ignore, % cfg, Autocorrect, Backspace_Ignore, 0
 
 IniRead regexp_list, % cfg, Converter, Regexp_List, % " "
 
@@ -197,14 +199,12 @@ Else {
     apps.Push([1,0,"mpc-be*.exe","MPC-BE","MPC-BE"])
     apps.Push([1,0,"mpc-hc*.exe","MediaPlayerClassicW","MPC-HC"])
     apps.Push([1,0,"1by1.exe","1by1WndClass","1by1 Directory Player"])
-    FileEncoding UTF-16
     Loop % apps.Length() {
         n:=A_Index, app:=""
         Loop 5
             app.=apps[n,A_Index] ","
         IniWrite % RegExReplace(app, ",$") , % cfg, Apps, app%n%
     }
-    FileEncoding UTF-8
 }
     
 SysGet MW, MonitorWorkArea
@@ -284,7 +284,7 @@ Menu Autocorrect, Add, Конвертер словарей, DictConverter
 Menu Autocorrect, Add, Папка словарей, DictFolder
 Menu Autocorrect, Add, Рабочие словари, OpenDict
 Menu Autocorrect, Add
-Menu Autocorrect, Add, Пользовательский словарь, UserDict
+Menu Autocorrect, Add, Исключения, UserDict
 Menu Autocorrect, Add, История отмен, UndoLog
 Menu Autocorrect, Add, Статистика, Statistics
 Menu Tray, Add, Автопереключение, :Autocorrect
@@ -398,8 +398,8 @@ Gosub Masks
 
 lang_old:=lang_array[1,1]
 SetTimer TrayIcon, 100
-Sleep 500
-SetTimer Flag, 33
+Sleep 300
+SetTimer Flag, 40
 Gosub LoadDict
 
 ;==================================================
@@ -468,17 +468,20 @@ KeyArray(hook, vk, sc) {
     If ((il:=InputLayout())!=il_old) && (print_win=print_win_old) && print_win_old && il_old && new_lang_ignore
         new_lang:=1
     il_old:=il, print_win_old:=print_win, wheel:=0
-    
-    If !autocorrect || (!single_lang && !(il~=lang_auto)) || (single_lang && !(il~=lang_auto_others) && lang_auto_others) || (single_lang && (il=lang_auto_single))
-        Return
-    If single_lang
-        alt_lang:=lang_auto_single
-    Else
-        RegExMatch(lang_auto, "\(\K.+(?=\|)", auto1), RegExMatch(lang_auto, "\|\K.+(?=\))", auto2), alt_lang:=(il=auto1) ? auto2 : auto1
-    dic_curr:=dic_%il%, dic_alt:=dic_%alt_lang%
+    If !autocorrect         Return
+    If !single_lang && lang_auto {
+        If !(il~=lang_auto)
+            Return
+        RegExMatch(lang_auto, "\(\K(.+)\|(.+)(?=\))", auto), alt_lang:=(il=auto1) ? auto2 : auto1    
+    }
+    Else If lang_auto_others {
+        If !(il~=lang_auto_others)
+            Return
+        alt_lang:=lang_auto_single    
+    }
 
     If (key_name~="^(Space|Tab|Enter|NumpadEnter)$")
-        text_convert:=new_lang:=mouse_click:=text:=text_alt:="", out_orig:=[]
+        text_convert:=new_lang:=mouse_click:=text:=text_alt:=wait_next:="", bs_count:=0, out_orig:=[]
 
     key_name:=GetKeyName(sc), ih_old:=ih.Input, last_symb:=SubStr(ih_old, 0), last_space:=(key_name~="^(Space|Tab|Enter|NumpadEnter)$") ? 1 : 0
     
@@ -492,77 +495,111 @@ KeyArray(hook, vk, sc) {
     {
         If last_symb && word_margins_enabled {
             ih.Stop()
-            Return        
+            Return
         }
         Else
             text_alt.=last_symb            
     }
     Else {
-        VarSetCapacity(state, 256, 0), VarSetCapacity(char, 4, 0)
-        n:=DllCall("ToUnicodeEx", "uint", vk0, "uint", sc0, "ptr", &state, "ptr", &char, "int", 2, "uint", 0, "ptr", alt_lang), symb:=StrGet(&char, n, "utf-16"), 
-        
-        If (GetKeyState("CapsLock", "T") && !GetKeyState("Shift", "P")) || (!GetKeyState("CapsLock", "T") && GetKeyState("Shift", "P"))
-            StringUpper symb, symb
-        text_alt.=symb 
+        If (key_name="Backspace") && !backspace_ignore
+            text_alt:=SubStr(text_alt, 1, -1), ks.Pop(), ks.Pop()
+        Else If (key_name="Backspace") && backspace_ignore
+            text_convert:=1
+        Else {
+            VarSetCapacity(state, 256, 0), VarSetCapacity(char, 4, 0)
+            n:=DllCall("ToUnicodeEx", "uint", vk0, "uint", sc0, "ptr", &state, "ptr", &char, "int", 2, "uint", 0, "ptr", alt_lang), symb:=StrGet(&char, n, "utf-16")
+            If (GetKeyState("CapsLock", "T") && !GetKeyState("Shift", "P")) || (!GetKeyState("CapsLock", "T") && GetKeyState("Shift", "P"))
+                StringUpper symb, symb
+            text_alt.=symb
+        }
     }
-    End:
-    RegExMatch(ih_old, "\S+(?=\s?$)", text), RegExMatch(text_alt, "\S+(?=\s?$)", t_alt), RegExMatch(ih_old, "\S+\s*$", ct), str_length:=StrLen(ct)  
-    If text_convert || (new_lang && new_lang_ignore)  || (mouse_click && mouse_click_ignore)
+    End: 
+    RegExMatch(ih_old, "\S+(?=\s?$)", text), RegExMatch(text_alt, "\S+(?=\s?$)", t_alt), RegExMatch(ih_old, "\S+\s*$", ct), str_length:=StrLen(ct)+bs_count
+    If text_convert || (new_lang && new_lang_ignore)  || (mouse_click && mouse_click_ignore) || (text~="\d")
         Return
-    t0:=Backslash(text), t0_alt:=Backslash(t_alt)
-    If accent_ignore
-        t0:=DelAccent(t0), t0_alt:=DelAccent(t0_alt)
-    rs:="mi)^"
-    If ((t0==Format("{:U}", t0)) || (t0_alt==Format("{:U}", t0_alt)) && (StrLen(t0)>1)) {
-        If (abbr_ignore=1)
-            rs:="m)^"
-        If (abbr_ignore=2)
-            rs:="mi)^"
-        If (abbr_ignore=3)
-            Return
-    }
-    Else
-        t0:=Format("{:L}", t0), t0_alt:=Format("{:L}", t0_alt), rs:=(abbr_ignore=2) ? "mi)^" : "m)^"
-    If RegExMatch(user_dic, rs . t0) {
+    t0:=RegExReplace(text, "\s$"), t0_alt:=RegExReplace(t_alt, "\s$")
+    If RegExMatch(user_dic, "mi`n)^" t0) {
         text_convert:=1
         Return
     }
+    If letter_ignore && (StrLen(t0)=1)
+        Return
+        
+    rs:="m`n)^", tu:=0
+    If (t0==Format("{:L}", t0))
+        rs:="mi`n)^", t0:=Format("{:T}", t0), t0_alt:=Format("{:T}", t0_alt), tu:=1
+        
+    t1:=Spell_Spell(d_%il%, t0) ? t0 : "" , t2:=Spell_Spell(d_%alt_lang%, t0_alt) ? t0_alt : ""
+    If last_space
+        Sleep 50 ; иначе смещаются слова!
+    If !last_space && !t1
+        Spell_Suggest(d_%il%, t0, list_curr), RegExMatch(list_curr, rs . t0, t1)
+    If !last_space && !t2
+        Spell_Suggest(d_%alt_lang%, t0_alt, list_alt), RegExMatch(list_alt, rs . t0_alt, t2),      
+    OutputDebug % t0 "/" t0_alt "  kn: " key_name " t1: " t1 "t2: " t2 " len: " str_length
+    ;OutputDebug % il "`n" list_curr "`n" list_alt
     
-    RegExMatch(dic_curr, rs . t0 (last_space ? "$" : ""), t1),
-    RegExMatch(dic_alt, rs . t0_alt (last_space ? "$" : ""), t2)
-    
-    OutputDebug % t0 "/" t0_alt "<kn: " key_name " t1: " t1 "t2: " t2 " len: " str_length
-    
-    If ttip {           
-        Tooltip % LangCode(il) "   " t0 "   " t1 "`n" LangCode(alt_lang) "   " t0_alt "   " t2, % A_ScreenWidth//2-200, 0, 10
+    If ttip {
+        list1:=list2:=count1:=count2:=""
+        If t1 {
+            list1:=t1 ", ", count1:=1
+            Loop Parse, list_curr, `n
+                If (A_LoopField~="^" t0) && (A_LoopField!=t1) {
+                    count1++
+                    If (count1<6)
+                        list1.=A_LoopField ", "
+                }
+            list1:="(" RegExReplace(list1, ", ?$") ")"
+        }
+        If t2 {
+            list2:=t2 ", ", count2:=1
+            Loop Parse, list_alt, `n
+                If (A_LoopField~="^" t0_alt)  && (A_LoopField!=t2) {
+                    count2++
+                    If (count2<6)
+                        list2.=A_LoopField ", "
+                }
+            list2:="(" RegExReplace(list2, ", ?$") ")"
+        }
+        If tu
+            t0:=Format("{:L}", t0), t1:=Format("{:L}", t1), t0_alt:=Format("{:L}", t0_alt), t2:=Format("{:L}", t2), list1:=Format("{:L}", list1), list2:=Format("{:L}", list2)
+        Tooltip % LangCode(il) "   " t0 "   " t1 "  " list1 "`n" LangCode(alt_lang) "   " t0_alt "   " t2  "  " list2 , % A_ScreenWidth//2-300, 0, 10
+        ttip1:=""
         Return
     }
-
     If ((last_space && str_length) || (str_length>(min_length ? 2 : 1))) && t2 && !t1 {
+        If !last_space && !wait_next {
+            wait_next:=1
+            Return
+        }
         Critical On
-        ih.VisibleText:=False
-        lconvert:=single_lang ? lang_auto_single : ((il=auto1) ? auto2 : auto1)
+        BlockInput On
+        ;ih.VisibleText:=False
         If sound
             SoundPlay *64
-        If tray_tip {
-            TrayTip,, % "Преобразование`n" LangCode(il) " / " LangCode(lconvert),, 17
-            SetTimer TrayTip, -2000
-        }
-        If str_length && ((ks.Length()-str_length)>0)
+        If str_length && (ks.Length()>str_length)
             ks.RemoveAt(1, ks.Length()-str_length) 
         il_convert:=il, ts:=A_TickCount, keys:=ts-tstart
         Loop % str_length
             SendInput % "{BS down}{BS up}"
-        SetInputLang(key_switch, lconvert)
-        Sleep 50
+        ;SetInputLang(key_switch, alt_lang)
+        win_id:=WinExist("A")
+        ControlGetFocus, CtrlInFocus, ahk_id %win_id%
+        PostMessage, 0x50, 0, % alt_lang, % CtrlInFocus, ahk_id %win_id%
+        Sleep 20
+        If tray_tip {
+            TrayTip,, % "Преобразование`n" LangCode(il) " / " LangCode(alt_lang),, 17
+            SetTimer TrayTip, -2000
+        }
         out_orig:=ks.Clone(), ks:=[]
         SendText(out_orig)
         SendText(ks)
         out_orig.Push(ks*)
-        ih.VisibleText:=True
+        ;ih.VisibleText:=True
+        BlockInput Off
         Critical Off
-        ih.Stop(), il_old:=InputLayout(), text_convert:=1
-        FileAppend % "`r`n" t0 "/" t0_alt " - "  keys "/" A_TickCount-ts, logs\transform.log
+        ih.Stop(), il_old:=InputLayout(), text_convert:=1, wait_next:=""
+        FileAppend % "`r`n" t0 "/" t0_alt " - "  keys "/" A_TickCount-ts " - "  alt_lang, logs\transform.log, UTF-8
     }       
 }
 
@@ -573,17 +610,7 @@ TrayTip:
         Sleep 200
         Menu Tray, Icon
     }
-
     Return
-
-Backslash(t) {
-    Loop Parse, t
-        If A_LoopField in  \,.,*,?,+,[,{,|,(,),^,$
-            out.="\" A_LoopField
-        Else
-            out.=A_LoopField
-    Return out
-}
 
 DelAccent(txt) {
     If (A_OSVersion="Win_XP") 
@@ -598,7 +625,7 @@ Pause::Goto Translate
 #If (InputLayout()~=shift_bs_langs) && shift_bs_langs && !(autocorrect && text_convert && out_orig.Length())
 +BS::Goto Translate
 
-#If text_convert
+#If text_convert && ctrlz_undo
 ^vk5A up::
     KeyWait Ctrl, T1
         Goto Rollback
@@ -642,8 +669,8 @@ Rollback:
     SendText(out_orig)
     If (A_ThisHotkey~="\+")
         Send {Shift up}
-    FileAppend % "`r`n" t0 "/" t0_alt, logs\undo.log        
-    FileAppend % " <==", logs\transform.log
+    FileAppend % "`r`n" t0 "/" t0_alt, logs\undo.log, UTF-8        
+    FileAppend % " <==", logs\transform.log, UTF-8
     text_convert:="", ih.Stop(), out_orig:=[]
     Return
 
@@ -801,7 +828,8 @@ InvertCase(t) {
 
 OnFlag(hwnd) {
     MouseGetPos,,, win, ctrl
-    Return (win && (win=hwnd) && (ctrl~="Static")) ? 1 : 0
+    WinGetClass cl, ahk_id %win%
+    Return (win && (win=hwnd) && (cl="AutoHotkeyGUI") && (ctrl~="Static")) ? 1 : 0
 }
 
 #If OnFlag(FlagHwnd)
@@ -997,6 +1025,9 @@ CapsLock::
     Return
 
 #If
+~!Tab::
+    ih.Stop()
+    Return
 
 OnTaskBar() {
     MouseGetPos,,, win_id
@@ -1178,6 +1209,8 @@ Esc::Goto 4GuiClose
 #If
 
 Exit:
+    Loop Parse, dname_string, CSV
+        Spell_Uninit(A_LoopField)
     Loop % lang_count
         Gdip_DisposeImage(lang_array[A_Index, 4])
     Gdip_DisposeImage(pCaps)
@@ -1207,7 +1240,6 @@ LB_WatchDog:
     Return
 
 Settings:
-    FileEncoding UTF-16
     IniWrite % version, % cfg, Main, Version
 
     IniWrite % pause_langs, % cfg, Layouts, Pause_Langs
@@ -1280,19 +1312,19 @@ Settings:
     IniWrite % only_main_dict, % cfg, Autocorrect, Only_Main_Dict
     IniWrite % lang_auto_single, % cfg, Autocorrect, Lang_Auto_Single
     IniWrite % lang_auto_others, % cfg, Autocorrect, Lang_Auto_Others
-    IniWrite % min_length, % cfg, Autocorrect, Min_Length
     IniWrite % sound, % cfg, Autocorrect, Sound
     IniWrite % tray_tip, % cfg, Autocorrect, Tray_Tip
-    IniWrite % accent_ignore, % cfg, Autocorrect, Accent_Ignore
     IniWrite % no_indicate, % cfg, Autocorrect, No_Indicate
-    IniWrite % abbr_ignore, % cfg, Autocorrect, Abbr_Ignore
-    IniWrite % short_abbr_ignore, % cfg, Autocorrect, Short_Abbr_Ignore
+    IniWrite % min_length, % cfg, Autocorrect, Min_Length
+    IniWrite % letter_ignore, % cfg, Autocorrect, Letter_Ignore
+    IniWrite % ctrlz_undo, % cfg, Autocorrect, CtrlZ_Undo
+    
     IniWrite % word_margins_enabled, % cfg, Autocorrect, Word_Margins_Enabled
     IniWrite % word_margins, % cfg, Autocorrect, Word_Margins
     IniWrite % digit_borders, % cfg, Autocorrect, Digit_Borders
     IniWrite % new_lang_ignore, % cfg, Autocorrect, New_Lang_Ignore
     IniWrite % mouse_click_ignore, % cfg, Autocorrect, Mouse_Click_Ignore
-    FileEncoding UTF-8
+    IniWrite % backspace_ignore, % cfg, Autocorrect, Backspace_Ignore
     Return
 
 ToolTip:
@@ -1483,8 +1515,8 @@ Masks:
 
 TrayIcon:
     If ttip1 {
-        ToolTip % "sl/ks: " str_length "/" ks.Length() " rs: " rs " tc/nl/mc: " text_convert "/" new_lang "/" mouse_click " ls: " last_space, 250, 0, 12
-        Tooltip % ">" t0 "<>" t1 "<ls: " last_space " kn: " key_name "`n>" t0_alt "<>" t2 "<", 600, 0, 13
+        ToolTip % "strl/ksl: " str_length "/" ks.Length() "`ntext_convert: " text_convert "`nnew_lang:" new_lang "`nmouse_click:" mouse_click "`nlast_space: " last_space "`nwait_next: " wait_next "`n" target_lang, 400, 0, 12
+        Tooltip % il " " t0 "  " t1 "   (ls: " last_space ") (kn: " key_name ")`n" alt_lang " " t0_alt "  " t2, 600, 0, 13
         ;ToolTip % ih.EndReason " " ih.EndKey " " ((ih.EndReason="Stopped") ? stop : ""), 700, 0, 14
     }
 
@@ -1529,7 +1561,7 @@ TrayIcon:
         DeleteObject(IconHandle)
         IconHandle:=Gdip_CreateHICONFromBitmap(pMem)
         If !IconHandle {
-            FileAppend error, logs\tray_icon.log
+            FileAppend error, logs\tray_icon.log, UTF-8
             Return
         }
         Sleep 5
@@ -1589,9 +1621,9 @@ Indicator:
             WinSet Top,, ahk_id %IndHwnd%            
             Gui IndHwnd:Default
             If autocorrect && !no_indicate {
-                au_h1:=Round(w_in*.4), AinHandle:=single_lang ? SingleLangHandle : AutocorrectHandle
+                au_h1:=Round(w_in/3), AinHandle:=single_lang ? SingleLangHandle : AutocorrectHandle
                 GuiControl,, % IndAutocorrectID, *w%au_h1% *h%au_h1% hbitmap:*%AinHandle%
-                GuiControl MoveDraw, % IndAutocorrectID, % "x" Round(w_in*.34) "y" Round(w_in*.8)
+                GuiControl MoveDraw, % IndAutocorrectID, % "x" Round(w_in/3) "y" Round(w_in*.8)
                 GuiControl Show, % IndAutocorrectID
             }
             Else
@@ -1697,8 +1729,6 @@ Flag:
     Return
 
 LayoutsAndFlags:
-    SetTimer TrayIcon, Off
-    SetTimer Flag, Off
     Sleep 200
     Gui 3:Destroy
     Gui 3:+LastFound -DPIScale -MinimizeBox +hWndGui3
@@ -1823,7 +1853,7 @@ LayoutsAndFlags:
             lang_auto_single_sel:=A_Index
     If (A_TickCount<120000) && (A_OSVersion~="^10")
         SetInputLang(key_switch, lang_array[1, 1])
-    If !(A_ThisMenuItem="Раскладки и флажки")
+    If !A_ThisMenuItem
         Return
     LV_ModifyCol(1, "AutoHdr Center")
     LV_ModifyCol(2, "160")
@@ -1872,8 +1902,6 @@ LayoutsAndFlags:
     GuiControl,, digit_keys, % digit_keys
     GuiControl,, f_keys, % f_keys
     Gui 3:Show,, Раскладки и флажки
-    SetTimer TrayIcon, On
-    SetTimer Flag, On
     Return
     
 Brightness(color, amt) {
@@ -2199,7 +2227,6 @@ RulesSave:
     Gui 6:Submit, Nohide
     apps:=[]
     IniDelete % cfg, Apps
-    FileEncoding UTF-16
     Loop % LV_GetCount() {
         r1:=(LV_GetNext(A_Index-1, "C")=A_Index) ? 1 : 0
         LV_GetText(r2, A_Index,2)
@@ -2212,7 +2239,6 @@ RulesSave:
         IniWrite % app%A_Index%, % cfg, Apps, app%A_Index%
         apps.Push([r1, r2, r3, r4, r5])
     }
-    FileEncoding UTF-8
 6GuiClose:
     Gui 6:Destroy
     Return
@@ -2441,43 +2467,28 @@ USB-Version:
 
 ;========= Загрузка словарей =========
 LoadDict:
-    ld_start:=A_TickCount, dict_string:=""
-    StringCaseSense Locale
+    ld_start:=A_TickCount, dict_string:=dname_string:=""
     Loop % lang_count {
         lac:=lang_array[A_Index, 1]
         If !((lac~=lang_auto) || (lac=lang_auto_single) || ((lac~=lang_auto_others) && lang_auto_others))
             Continue
-        df:=lang_array[A_Index, 5], dic_out:="" 
-        Loop Files, % "dict\" df "\*.dic"
-        {
-            If only_main_dict && (A_LoopFileName!=df ".dic$")
-                Continue
-            dict_string.="""" A_ScriptDir "\" A_LoopFilePath ""","
-            FileRead dic, % A_LoopFilePath
-            words:=StrSplit(dic, "`n", "`r")
-            For each, ds in words
+        df:=lang_array[A_Index, 5], main_dict:=StrReplace(df, "-", "_"), dname=d_%lac%
+        If !FileExist("dict\" df "\" main_dict ".dic") && !FileExist("dict\" df "\" main_dict ".aff")
+            Return
+        If not Spell_Init(d_%lac%, "dict\" df "\" main_dict ".aff", "dict\" df "\" main_dict ".dic", "hunspell\")
+            dname:=""
+        dict_string.="""" A_ScriptDir "\dict\" df "\" main_dict ".dic"",", dname_string.=dname ","
+        If !only_main_dict {
+            Loop Files, % "dict\" df "\*.dic"
             {
-                ds:=Trim(RegExReplace(ds, "/.+$"))
-                If (ds~="^\d+$") || (ds~="^\s*;")
+                If (A_LoopFileName=main_dict ".dic")
                     Continue
-                If (StrLen(ds)=1) || !(ds==Format("{:U}", ds)) ;;;;;;
-                    ds:=Format("{:L}", ds)
-                If (StrLen(ds)=2) && (ds==Format("{:U}", ds)) && short_abbr_ignore
-                    Continue
-                If (abbr_ignore=3) && (ds==Format("{:U}", ds))
-                    Continue
-                dic_out.=ds ? ds "`r`n" : ""
-                n%fn%++
+                Spell_InitCustom(d_%lac%, A_LoopFilePath)
+                dict_string.="""" A_LoopFilePath ""","
             }
-            If accent_ignore
-                dic_out:=DelAccent(dic_out)
-            Sort dic_out, U
         }
-        dv:=lang_array[A_Index, 1], dic_%dv%:=dic_out
-        ;FileDelete dict\dic_%dv%
-        ;FileAppend % dic_out, dict\dic_%dv%.dic
     }
-    FileAppend % "`r`n;" A_TickCount-start "/" A_TickCount-ld_start, logs\transform.log
+    FileAppend % "`r`n;" A_TickCount-start "/" A_TickCount-ld_start, logs\transform.log, UTF-8
     start:=ld_start:=0
     Return
     
@@ -2485,7 +2496,7 @@ UpdateUserDict:
     FileGetTime dict_time, % cfg_folder "\user_dict.dic", M
     If (dict_time!=dict_time_old) {
         user_dic:=""
-        FileRead udic, % cfg_folder "\user_dict.dic"
+        FileRead udic, % "*P65001 " cfg_folder "\user_dict.dic" 
         udic:=StrSplit(udic, "`n", "`r")
         For each, us in udic
         {
@@ -2505,16 +2516,17 @@ Autocorrect:
     Gui 8:Color, 6DA0B8
     Gui 8:Margin, 12, 8
     Gui 8:Font, s9
-    Gui 8:Add, CheckBox, x28 section vsound, Звук при автопереключении и отмене
+    Gui 8:Add, CheckBox, x28 y16 section vsound, Звук при автопереключении и отмене
     Gui 8:Add, CheckBox, xs vtray_tip, Уведомление при автопереключении
+    Gui 8:Add, CheckBox, xs vctrlz_undo, Отмена преобразования по Ctrl+Z
     Gui 8:Add, CheckBox, xs vno_indicate, Выключение индикации на флажке
     Gui 8:Add, GroupBox, x12 w380 h98, Языки автопереключения
     Gui 8:Add, DropDownList, vlang_auto_i x60 yp+28 w288 Choose%lang_auto_sel% AltSubmit, % lang_set_auto
     Gui 8:Add, CheckBox, x28 y+8 section vonly_main_dict, Только основной словарь
-    Gui 8:Add, GroupBox, x12 w380 h216, Режим одного языка
+    Gui 8:Add, GroupBox, x12 w380 h164, Режим одного языка
     Gui 8:Add, DropDownList, vlang_auto_i2 gAcupdate x60 yp+28 w288 Choose%lang_auto_single_sel% AltSubmit, % lang_menu_single
     Gui 8:Add, Text, xp y+8, Языки автопереключения:
-    Gui 8:Add, ListView, -Hdr Grid r4 Checked w288 x60 yp+28, #|Layout
+    Gui 8:Add, ListView, -Hdr Grid r2 Checked w288 x60 yp+28, #|Layout
     row_numb:=0
     Loop % lang_array.Length() {
         row_numb++
@@ -2526,25 +2538,20 @@ Autocorrect:
     LV_ModifyCol(1, "60 AutoHdr Center")
     LV_ModifyCol(2, "208")
     
-    Gui 8:Add, CheckBox, x420 y12 section vmin_length, Обработка текста с 3-х символов
-    Gui 8:Add, CheckBox, xs vaccent_ignore, Игнорировать акценты (ё=е, á=a и пр.)
-    
-    Gui 8:Add, GroupBox, xp-16 y+6 w380 h152, Обработка аббревиатур
-    Gui 8:Add, Radio, xs yp+28 vabbr_ignore, Сравнение с учетом регистра 
-    Gui 8:Add, Radio, xs yp+32 +hwndr2, Сравнение без учета регистра 
-    Gui 8:Add, Radio, xs yp+32 +hwndr3, Игнорировать полностью
-    Gui 8:Add, CheckBox, xs yp+28 vshort_abbr_ignore, Игнорировать короткие аббревиатуры
-    
-    Gui 8:Add, GroupBox, xp-16 y+16 w380 h94, Начальные границы слов
+
+    Gui 8:Add, CheckBox, x420 y16 section vmin_length, Обработка текста с 3-х символов
+    Gui 8:Add, CheckBox, xs vletter_ignore, Игнорировать одельные буквы 
+    Gui 8:Add, GroupBox, xp-16 y+6 w380 h94, Начальные границы слов
     Gui 8:Add, CheckBox, xs yp+28 vword_margins_enabled, Символы:
     w_margins:=""
     Loop Parse, word_margins, CSV
         w_margins.=A_LoopField        
     Gui 8:Add, Edit, x+20 yp-4 w160 h32 vw_margins, % w_margins
     Gui 8:Add, CheckBox, xs yp+36 vdigit_borders, Клавиши цифрового ряда
-    Gui 8:Add, GroupBox, xp-16 y+16 w380 h94, Не исправлять раскладку
+    Gui 8:Add, GroupBox, xp-16 y+16 w380 h124, Не исправлять раскладку
     Gui 8:Add, CheckBox, xs yp+28 vnew_lang_ignore, После ручного переключения
     Gui 8:Add, CheckBox, xs yp+32 vmouse_click_ignore, После клика мышью (вставка)
+    Gui 8:Add, CheckBox, xs yp+32 vbackspace_ignore, После нажатия Backspace
     
     Gui 8:Add, Button, x168 w120 h28 section g8GuiClose, Cancel
     Gui 8:Add, Button, x+6 ys w200 hp g8Defaults, По умолчанию
@@ -2555,16 +2562,14 @@ Autocorrect:
     GuiControl,, min_length, % min_length
     GuiControl,, sound, % sound
     GuiControl,, tray_tip, % tray_tip
-    GuiControl,, accent_ignore, % accent_ignore
     GuiControl,, no_indicate, % no_indicate
-    GuiControl,, abbr_ignore, % (abbr_ignore=1) ? 1 : 0 
-    GuiControl,, % r2, % (abbr_ignore=2) ? 1 : 0 
-    GuiControl,, % r3, % (abbr_ignore=3) ? 1 : 0
-    GuiControl,, short_abbr_ignore, % short_abbr_ignore
+    GuiControl,, letter_ignore, % letter_ignore
+    GuiControl,, ctrlz_undo, % ctrlz_undo
     GuiControl,, word_margins_enabled, % word_margins_enabled
     GuiControl,, digit_borders, % digit_borders
     GuiControl,, new_lang_ignore, % new_lang_ignore
     GuiControl,, mouse_click_ignore, % mouse_click_ignore
+    GuiControl,, backspace_ignore, % backspace_ignore
     Gui 8:Show,, Настройки автопереключения
     Return
     
@@ -2575,7 +2580,7 @@ Acupdate:
     Goto Autocorrect
        
 8Defaults:
-    subfolders:=sound:=abbr_ignore:=word_margins_enabled:=digit_borders:=new_lang_ignore:=mouse_click_ignore:=tray_tip:=0, sound:=accent_ignore:=abbr_ignore:=short_abbr_ignore:=1, single_lang:=0x0409, word_margins:="(,|,\,/,_,=,+"    
+    only_main_dict:=word_margins_enabled:=digit_borders:=new_lang_ignore:=mouse_click_ignore:=backspace_ignore:=tray_tip:=0, sound:=1, word_margins:="(,|,\,/,_,=,+"    
     Gosub Autocorrect
     Goto Settings
     
@@ -2686,7 +2691,7 @@ DictConverter:
     Gui 10:Add, CheckBox, vconv_lowercase xs , Все слова в нижний регистр
     Gui 10:Add, CheckBox, vconv_del_digits xs +Checked, Удалять слова с цифрами
     Gui 10:Add, CheckBox, vconv_del_quot xs, Удалять слова с апострофами
-    Gui 10:Add, CheckBox, vconv_crop xs +Checked, Обрезать слова до
+    Gui 10:Add, CheckBox, vconv_crop xs, Обрезать слова до
     Gui 10:Add, DropDownList, vconv_crop_size x+8 yp-4 w48, 3|4|5|6||7|8|9|10|11|12
     Gui 10:Add, Text, x+8 yp+4, знаков
     
@@ -2733,7 +2738,7 @@ ReadFiles:
     text:="", f_path:=file_path
     Loop Parse, f_path, `n
     {
-        FileRead t_in, % A_LoopField
+        FileRead t_in, % "*P65001 " A_LoopField 
         text.="`r`n" t_in 
         If (A_Index=1)
             file_path:=A_LoopField
@@ -2763,7 +2768,7 @@ SaveText:
             Return
         Loop {
             SplitPath dict_name,,,, dir_name 
-            save_path:=dict_name "\" dir_name ((A_Index>1) ? "_" A_Index-1 : "") ".dic"
+            save_path:=dict_name "\" StrReplace(dir_name, "-", "_") "_" A_Index ".dic"
             If !FileExist(save_path)
                 Break
         }
@@ -2771,7 +2776,7 @@ SaveText:
     SplitPath save_path,, save_dir    
     If FileExist(save_path)
         FileDelete % save_path
-    FileAppend % dic0, % save_path
+    FileAppend % dic0, % save_path, UTF-8
     Sleep 50
     FileGetSize file_size, % save_path, K
     file_size:=(file_size>1000) ? file_size/1000 " KB" : file_size " B"
@@ -2834,18 +2839,19 @@ TextConvert:
 Statistics:
     res1_all:=res2_all:=res3_all:=res4_all:=max:=0
     If FileExist("logs\transform.log") {
-        FileRead transform, logs\transform.log
+        FileRead transform, *P65001 logs\transform.log 
         trans:=StrSplit(transform, "`n", "`r"), nl:=tr:=lpr:=ldt:=0
         For each, str in trans
         {
             If RegExMatch(str, "^;(\d+)/(\d+)", tl)
                 nl+=1, lpr+=Format("{:d}", tl1), ldt+=Format("{:d}", tl2)
             
-            If RegExMatch(str, "(?<!;)(\S+)/.+ (\d+)/(\d+)\s*(\S+)?", res)
-                tr+=1, rl:=StrLen(res1), res1_all+=rl, max:=Max(rl, max), res2_all+=Format("{:d}", res2), res3_all+=Format("{:d}", res3), res4_all+=(res4 ? 1 : 0)          
-            
+            If RegExMatch(str, "(?<!;)(\S+)/.+ (\d+)/(\d+)", res)
+                tr+=1, rl:=StrLen(res1), res1_all+=rl, max:=Max(rl, max), res2_all+=Format("{:d}", res2), res3_all+=Format("{:d}", res3), 
+            If (str~="==$")
+                res4_all++
         }
-        MsgBox,, Статистика, % "Среднее время загрузки программы: " lpr/nl " mc`nИз них загрузки словарей: " ldt/nl " mc`n`nСреднее время обработки нажатий клавиш: " res2_all/tr " mc`nСреднее время преобразования текста: " res3_all/tr " mc`n`nСредняя длина преобразованного текста: " Format("{:.3}", res1_all/tr) "`nМаксимальная длина преобразованного текста: " max "`nЧисло преобразований: " tr "`nЧисло отмен преобразований: " res4_all " (" Format("{:.2}", res4_all/tr*100) " %)"
+        MsgBox,, Статистика, % "Среднее время загрузки программы: " lpr/nl " mc`nИз них загрузки словарей: " ldt/nl " mc`n`nСреднее время обработки нажатий клавиш: " res2_all/tr " mc`nСреднее время преобразования текста: " res3_all/tr " mc`n`nСредняя длина преобразованного текста: " Format("{:.3}", res1_all/tr) "`nМаксимальная длина преобразованного текста: " max "`nЧисло преобразований: " tr "`nЧисло отмен преобразований: " res4_all " (" res4_all*100//tr "%)"
     }
     Return
 
