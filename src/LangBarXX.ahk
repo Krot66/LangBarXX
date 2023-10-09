@@ -1,13 +1,11 @@
 ﻿#NoEnv
 #SingleInstance Force
 #MaxHotkeysPerInterval 99999999
-#MaxThreadsPerHotkey 1
 #MaxMem 150
 #InstallKeybdHook
 #KeyHistory 0
 If A_IsCompiled
-    ListLines Off
-SetBatchLines -1
+    ListLines Off    
 SetWinDelay 20
 CoordMode Caret
 CoordMode Tooltip
@@ -17,7 +15,7 @@ SetTitleMatchMode 2
 SetTitleMatchMode Slow
 Process Priority,, A
 
-version:="1.4.8"
+version:="1.5.0"
 
 /*
 Использованы:
@@ -62,15 +60,15 @@ If !editor
     editor:="notepad.exe"
 
 If FileExist("config") ; конфигурация портативная или установленная
-    cfg_folder:=A_ScriptDir "\config", cfg:="config\langbarxx.ini" 
+    cfg_folder:=A_ScriptDir "\config", cfg:="config\langbarxx.ini", apps_cfg:="config\apps_rules.ini" 
 Else {
-    cfg_folder:=A_AppData "\LangBarXX", cfg:=cfg_folder "\langbarxx.ini"
+    cfg_folder:=A_AppData "\LangBarXX", cfg:=cfg_folder "\langbarxx.ini", apps_cfg:=cfg_folder "\apps_rules.ini"
     FileCreateDir % cfg_folder
     If FileExist(cfg_folder "\temp.txt")
         Gosub USB-Version
 }
 If !FileExist(cfg_folder "\user_dict.dic")
-    FileAppend,, % cfg_folder "\user_dict.dic",UTF-8
+    FileAppend,, % cfg_folder "\user_dict.dic", UTF-8
 
 SetTimer UpdateUserDict, 10000
 
@@ -86,11 +84,13 @@ FileRemoveDir ReadMe.assets, 1
 FileDelete Changelog.txt
 FileDelete portable.dat
 If FileExist(cfg) {
+    IniDelete % cfg, Apps
     IniDelete % cfg, Tray, key_switch
     IniDelete % cfg, Indicator, DX_In
     IniDelete % cfg, Indicator, DY_In
     IniDelete % cfg, Layouts, pause
     IniDelete % cfg, Layouts, shift_bs
+    IniDelete % cfg, Autocorrect, min_length
     IniDelete % cfg, Autocorrect, accent_ignore    
     IniDelete % cfg, Autocorrect, abbr_ignore
     IniDelete % cfg, Autocorrect, short_abbr_ignore
@@ -159,7 +159,6 @@ IniRead lang_auto, % cfg, Autocorrect, Lang_Auto, % "(0x0409|0x0419)"
 IniRead only_main_dict, % cfg, Autocorrect, only_main_dict, 0
 IniRead lang_auto_single, % cfg, Autocorrect, Lang_Auto_Single, % "0x0409"
 IniRead lang_auto_others, % cfg, Autocorrect, Lang_Auto_Others, % " "
-IniRead min_length, % cfg, Autocorrect, Min_Length, 1
 IniRead sound, % cfg, Autocorrect, Sound, 1
 IniRead tray_tip, % cfg, Autocorrect, Tray_Tip, 0
 IniRead no_indicate, % cfg, Autocorrect, No_Indicate, 0
@@ -184,26 +183,12 @@ _radius:=64*radius//100, _bold:=bold ? "Bold" : ""
 default_colors:=[0x003FA5, 0xBF003F, 0x406300, 0x994A03, 0xC632A1, 0x1B7785, 0x444444, 0x8201D8]
 
 apps:=[]
-If FileExist(cfg) {
+If FileExist(apps_cfg) {
     Loop {
-        IniRead a, % cfg, Apps, app%A_Index%, % " "
+        IniRead a, % apps_cfg, Apps, app%A_Index%, % " "
         If !a
             Break
         apps.Push(StrSplit(a, ","))
-    }
-}
-Else {
-    apps.Push([1,1,"WindowsTerminal.exe","CASCADIA_HOSTING_WINDOW_CLASS","Windows Terminal"])
-    apps.Push([1,0,"wmplayer.exe","WMPlayerApp","Windows Media Player"])
-    apps.Push([1,0,"PotPlayer*.exe","PotPlayer","PotPlayer"])
-    apps.Push([1,0,"mpc-be*.exe","MPC-BE","MPC-BE"])
-    apps.Push([1,0,"mpc-hc*.exe","MediaPlayerClassicW","MPC-HC"])
-    apps.Push([1,0,"1by1.exe","1by1WndClass","1by1 Directory Player"])
-    Loop % apps.Length() {
-        n:=A_Index, app:=""
-        Loop 5
-            app.=apps[n,A_Index] ","
-        IniWrite % RegExReplace(app, ",$") , % cfg, Apps, app%n%
     }
 }
     
@@ -211,14 +196,16 @@ SysGet MW, MonitorWorkArea
 SysGet monitors, MonitorCount
 dx_in:=(monitors>1) ? dx_in_2 : dx_in_1, dy_in:=(monitors>1) ? dy_in_2 : dy_in_1
 
-SetTimer Settings, 10000
+SetTimer Settings, 30000
 If numlock_on
     SetNumLockState On
-
-Menu Tray, NoStandard
+If A_IsCompiled
+    Menu Tray, NoStandard
+Else
+    Menu Tray, Add
 Menu Tray, Tip, LangBar++
 Menu Tray, Add, Смена раскладки, LangBar
-Menu Tray, Default, 1&
+Menu Tray, Default, Смена раскладки
 Menu Tray, Add, Раскладки и флажки, LayoutsAndFlags
 
 Menu Flag, Add, Включен (Shift+Shift), FlagToggle
@@ -240,7 +227,6 @@ Menu Indicator, Add
 Menu Indicator, Add, Переключатель раскладки, Lang_Switcher
 Menu Indicator, Add, На полном экране, OnFullScreen
 Menu Indicator, Add, Настройки индикатора, IndicatorSettings
-Menu Indicator, Add, Правила приложений, Rules
 Menu Tray, Add, Индикатор раскладки, :Indicator
 
 Menu Icon, Add, Настройки флажка, As_Flag
@@ -296,6 +282,7 @@ Menu Select, Add, Обработка переносов, EnterOn
 Menu Select, Add, Обработка табуляций, TabOn
 Menu Select, Add,
 Menu Select, Add, Задержки выделения, GUI
+Menu Tray, Add, Правила приложений, AppRules
 Menu Tray, Add, Выделение, :Select
 Menu Tray, Add
 
@@ -323,9 +310,9 @@ If A_IsCompiled {
     Menu, Tray, Icon, 7&, % A_ScriptFullPath, 3
     Menu, Tray, Icon, 8&, % A_ScriptFullPath, 3
     Menu, Tray, Icon, 9&, % A_ScriptFullPath, 3
-    Menu, Tray, Icon, 15&, % A_ScriptFullPath, 4
-    Menu, Tray, Icon, 19&, % A_ScriptFullPath, 5
-    Menu, Tray, Icon, 20&, % A_ScriptFullPath, 6
+    Menu, Tray, Icon, 16&, % A_ScriptFullPath, 4
+    Menu, Tray, Icon, 20&, % A_ScriptFullPath, 5
+    Menu, Tray, Icon, 21&, % A_ScriptFullPath, 6
 }
 
 Menu Flag, % flag ? "Check" : "Uncheck", 1&
@@ -398,9 +385,11 @@ Gosub Masks
 
 lang_old:=lang_array[1,1]
 SetTimer TrayIcon, 100
-Sleep 300
+Sleep 300 
 SetTimer Flag, 40
 Gosub LoadDict
+Gosub EmptyMem
+SetTimer EmptyMem, 150000
 
 ;==================================================
 endkeys:="{Esc}{AppsKey}{LWin}{RWin}{F1}{F2}{F3}{F4}{F5}{F6}{F7}{F8}{F9}{F10}{F11}{F12}{Left}{Right}{Up}{Down}{Home}{End}{PgUp}{PgDn}{Del}{NumpadDel}{Ins}{NumpadIns}"
@@ -444,7 +433,7 @@ Loop {
     ih.Wait()
     If (ih.EndKey~="(Tab|Enter|NumpadEnter)")
         key_name:=ih.EndKey
-    If (ih.EndKey~="(Enter|BS)$")
+    If (ih.EndKey~="Enter")
         text_convert:=new_lang:=mouse_click:=""
 }
 
@@ -462,13 +451,20 @@ KeyArray(hook, vk, sc) {
     prefix:=GetKeyState("AltGr", "P") ? "<^>!" : prefix,
     vk:=Format("vk{:x}", vk), sc:=Format("sc{:x}", sc),
     ks.Push([prefix "{" sc "}", GetKeyState("CapsLock", "T")])
-
+    ksl:=ks.Length()
+    If (ks[ksl, 1]=ks[ksl-1, 1]) && (ks[ksl, 1]=ks[ksl-2, 1]) && (ks[ksl, 1]=ks[ksl-3, 1]) && (ks[ksl, 1]=ks[ksl-4, 1])
+        Return
     If ((print_win:=WinExist("A"))!=print_win_old) 
         mouse_click:=new_lang:=text_convert:=key_name:=""    
     If ((il:=InputLayout())!=il_old) && (print_win=print_win_old) && print_win_old && il_old && new_lang_ignore
         new_lang:=1
     il_old:=il, print_win_old:=print_win, wheel:=0
-    If !autocorrect         Return
+    If WinActive("ahk_class VMPlayerFrame") || WinActive("ahk_exe VirtualBox.exe") || WinActive("ahk_exe VirtualBoxVM.exe")
+        Return        
+    If (key_name~="^(Space|Tab|Enter|NumpadEnter)$")
+        text_convert:=new_lang:=mouse_click:=text:=text_alt:=wait_next:="", out_orig:=[]
+    key_name:=GetKeyName(sc), ih_old:=ih.Input, last_symb:=SubStr(ih_old, 0), last_space:=(key_name~="^(Space|Tab|Enter|NumpadEnter)$") ? 1 : 0
+    If !((auto_state=1) || (autocorrect && !(auto_state=2)))        Return
     If !single_lang && lang_auto {
         If !(il~=lang_auto)
             Return
@@ -479,11 +475,6 @@ KeyArray(hook, vk, sc) {
             Return
         alt_lang:=lang_auto_single    
     }
-
-    If (key_name~="^(Space|Tab|Enter|NumpadEnter)$")
-        text_convert:=new_lang:=mouse_click:=text:=text_alt:=wait_next:="", bs_count:=0, out_orig:=[]
-
-    key_name:=GetKeyName(sc), ih_old:=ih.Input, last_symb:=SubStr(ih_old, 0), last_space:=(key_name~="^(Space|Tab|Enter|NumpadEnter)$") ? 1 : 0
     
     If last_space && str_length
         Goto End
@@ -514,7 +505,7 @@ KeyArray(hook, vk, sc) {
         }
     }
     End: 
-    RegExMatch(ih_old, "\S+(?=\s?$)", text), RegExMatch(text_alt, "\S+(?=\s?$)", t_alt), RegExMatch(ih_old, "\S+\s*$", ct), str_length:=StrLen(ct)+bs_count
+    RegExMatch(ih_old, "\S+(?=\s?$)", text), RegExMatch(text_alt, "\S+(?=\s?$)", t_alt), RegExMatch(ih_old, "\S+\s*$", ct), str_length:=StrLen(ct)
     If text_convert || (new_lang && new_lang_ignore)  || (mouse_click && mouse_click_ignore) || (text~="\d")
         Return
     t0:=RegExReplace(text, "\s$"), t0_alt:=RegExReplace(t_alt, "\s$")
@@ -567,7 +558,7 @@ KeyArray(hook, vk, sc) {
         ttip1:=""
         Return
     }
-    If ((last_space && str_length) || (str_length>(min_length ? 2 : 1))) && t2 && !t1 {
+    If ((last_space && str_length) || (str_length>1)) && t2 && !t1 {
         If !last_space && !wait_next {
             wait_next:=1
             Return
@@ -582,10 +573,7 @@ KeyArray(hook, vk, sc) {
         il_convert:=il, ts:=A_TickCount, keys:=ts-tstart
         Loop % str_length
             SendInput % "{BS down}{BS up}"
-        ;SetInputLang(key_switch, alt_lang)
-        win_id:=WinExist("A")
-        ControlGetFocus, CtrlInFocus, ahk_id %win_id%
-        PostMessage, 0x50, 0, % alt_lang, % CtrlInFocus, ahk_id %win_id%
+        SetInputLang(key_switch, alt_lang)
         Sleep 20
         If tray_tip {
             TrayTip,, % "Преобразование`n" LangCode(il) " / " LangCode(alt_lang),, 17
@@ -610,6 +598,10 @@ TrayTip:
         Sleep 200
         Menu Tray, Icon
     }
+    Return
+    
+EmptyMem:
+    Dllcall("psapi.dll\EmptyWorkingSet", "UInt", -1)
     Return
 
 DelAccent(txt) {
@@ -642,13 +634,6 @@ Pause::
     Return
 #If
 
-;#If text_convert
-;^vk5A up::
-    ;KeyWait Ctrl, T1
-        ;Goto Rollback
-    ;Return
-
-;#If
 
 Rollback:
     If sound
@@ -852,8 +837,7 @@ CapsLock::
     Else
         Gosub Translate
     SetCapsLockState AlwaysOff
-    Return 
-    
+    Return     
 #If
 
 Translate:
@@ -1194,7 +1178,7 @@ About:
     Else
         Gui 4:Add, Picture, x60 y+16 w160 h-1, src\LB.ico
     Gui 4:Font, s10
-    Gui 4:Add, Text, x40 y+10, % "LangBar++ v. " version " " (A_PtrSize=8 ? "x64" : "x32") . (FileExist("config") ? "`n             portable" : "")
+    Gui 4:Add, Text, x40 y+10, % "LangBar++ " version " " (A_PtrSize=8 ? "x64" : "x32") . (FileExist("config") ? "`n             portable" : "")
     Gui 4:Font, s9
     Gui 4:Add, Button, x80 y+16 w120 h32 g4GuiClose, OK
     Gui 4:Show, w270, О программе
@@ -1209,6 +1193,7 @@ Esc::Goto 4GuiClose
 #If
 
 Exit:
+    Gosub Settings
     Loop Parse, dname_string, CSV
         Spell_Uninit(A_LoopField)
     Loop % lang_count
@@ -1222,7 +1207,6 @@ Exit:
     Process Exist, LB_WatchDog.exe
     If ErrorLevel
         Process Close, LB_WatchDog.exe
-    Gosub Settings
     ExitApp
 
 Autorun:
@@ -1315,7 +1299,6 @@ Settings:
     IniWrite % sound, % cfg, Autocorrect, Sound
     IniWrite % tray_tip, % cfg, Autocorrect, Tray_Tip
     IniWrite % no_indicate, % cfg, Autocorrect, No_Indicate
-    IniWrite % min_length, % cfg, Autocorrect, Min_Length
     IniWrite % letter_ignore, % cfg, Autocorrect, Letter_Ignore
     IniWrite % ctrlz_undo, % cfg, Autocorrect, CtrlZ_Undo
     
@@ -1352,19 +1335,19 @@ LangBar:
 <+RShift::
 >+LShift::
 FlagToggle:
+    KeyWait % RegExReplace(A_ThisHotkey, "^\W+"), T0.8
+    If ErrorLevel {
+        lr:=last_rule
+        Gosub AppRules
+        Sleep 2000
+        Return
+    }
     flag:=!flag
     Menu Flag, % flag ? "Check" : "Uncheck", 1&
     Return
 
 <^<+RShift::
 >^>+LShift::
-    KeyWait % RegExReplace(A_ThisHotkey, "^.+\+"), T0.8
-    If ErrorLevel {
-        lr:=last_rule
-        Gosub Rules
-        Sleep 2000
-        Return
-    }
 IndicatorToggle:
     indicator:=!indicator
     Menu Indicator, % indicator ? "Check" : "Uncheck", 1&
@@ -1458,6 +1441,7 @@ Pos:
     Goto Pos
 
 +LButton::
+    SetTimer Flag, Off
     MouseGetPos, x0, y0
     WinGetPos xc, yc,,, ahk_id %FlagHwnd%
     xc-=x0, yc-=y0
@@ -1467,6 +1451,7 @@ Pos:
         WinMove, ahk_id %FlagHwnd%,, xc+xn, yc+yn
     }
     DX+=xn-x0, DY+=yn-y0, mess:="Положение`nx=" DX ", y=" DY
+    SetTimer Flag, On
     Goto Pos
 #If
 
@@ -1514,6 +1499,8 @@ Masks:
     Return
 
 TrayIcon:
+    If !pToken
+        pToken:=Gdip_Startup()
     If ttip1 {
         ToolTip % "strl/ksl: " str_length "/" ks.Length() "`ntext_convert: " text_convert "`nnew_lang:" new_lang "`nmouse_click:" mouse_click "`nlast_space: " last_space "`nwait_next: " wait_next "`n" target_lang, 400, 0, 12
         Tooltip % il " " t0 "  " t1 "   (ls: " last_space ") (kn: " key_name ")`n" alt_lang " " t0_alt "  " t2, 600, 0, 13
@@ -1536,39 +1523,35 @@ TrayIcon:
     num:=GetKeyState("NumLock","T"), scr:=GetKeyState("ScrollLock","T"), caps:=GetKeyState("CapsLock","T")
     If (lang && (lang!=lang_old))||(num!=num_old)||(scr!=scr_old) || (autocorrect!=autocorrect_old) || (single_lang!=single_lang_old) {
         Gdip_GetImageDimensions(pFlag, wf, hf)
-        size:=24
+        icon_size:=24
         If A_OSVersion in WIN_XP,WIN_VISTA,WIN_7
-            size:=16
-        pMem:=Gdip_CreateBitmap(size, size)
+            icon_size:=16
+        pMem:=Gdip_CreateBitmap(icon_size, icon_size)
         T:=Gdip_GraphicsFromImage(pMem)
         Gdip_SetSmoothingMode(T, flag_sett ? smoothing : 2)
         Gdip_SetInterpolationMode(T, flag_sett ? scaling : 7)
-        hf2:=!aspect ? size*2//3 : ((aspect=1) ? size*3//4 : size*4//5)
-        shift:=(size-hf2)//2
+        hf2:=!aspect ? icon_size*2//3 : ((aspect=1) ? icon_size*3//4 : icon_size*4//5)
+        shift:=(icon_size-hf2)//2
         If (num && numlock_icon) || (scr && scrolllock_icon)
-            shift:=(icon_shift=0) ? (size-hf2)//2 : ((icon_shift=1) ? size-hf2 : 0)
-        Gdip_DrawImage(T, pFlag, 0, shift, size, hf2, 0, 0,wf, hf)
+            shift:=(icon_shift=0) ? (icon_size-hf2)//2 : ((icon_shift=1) ? icon_size-hf2 : 0)
+        Gdip_DrawImage(T, pFlag, 0, shift, icon_size, hf2, 0, 0,wf, hf)
         If (num && numlock_icon) {
             pNumLock_tray:=(scrolllock_icon && scrolllock) ? pNumLock : pNumScroll
-            Gdip_DrawImage(T, pNumLock_tray, 0, 0, size, size)
+            Gdip_DrawImage(T, pNumLock_tray, 0, 0, icon_size, icon_size)
         }
         If (scr && scrolllock_icon && scrolllock) {
             pScrollLock_tray:=numlock_icon ? pScrollLock : pNumScroll
-            Gdip_DrawImage(T, pScrollLock_tray, 0, 0, size, size)
+            Gdip_DrawImage(T, pScrollLock_tray, 0, 0, icon_size, icon_size)
         }
         If autocorrect && !no_indicate       
-            Gdip_DrawImage(T, single_lang ? pSingleLang : pAutocorrect, Round(size*.28), size*.6, Round(size*.44), Round(size*.44))
+            Gdip_DrawImage(T, single_lang ? pSingleLang : pAutocorrect, Round(icon_size*.28), icon_size*.6, Round(icon_size*.44), Round(icon_size*.44))
         DeleteObject(IconHandle)
         IconHandle:=Gdip_CreateHICONFromBitmap(pMem)
-        If !IconHandle {
-            FileAppend error, logs\tray_icon.log, UTF-8
-            Return
-        }
         Sleep 5
         Menu Tray, Icon, hicon:%IconHandle%,, 1
         Gdip_DisposeImage(pMem)
         Gdip_DeleteGraphics(T)
-        lang_old:=lang, num_old:=num, scr_old:=scr, autocorrect_old:=autocorrect, single_lang_old:=single_lang
+        lang_old:=lang, num_old:=num, scr_old:=scr, autocorrect_old:=autocorrect, single_lang_old:=single_lang           
     }
 
 Indicator:
@@ -1578,18 +1561,19 @@ Indicator:
         Gui 11:Hide
         Return
     }
-    app_state:=-1, last_rule:=""
+    flag_state:=ind_state:=auto_state:=0, last_rule:=""
     Loop % apps.Length() {
         If WinExist("ahk_hwnd" Gui6) || !apps[A_Index, 1]
             continue
-        an:=(apps[A_Index, 3]="*.*") ? "" : RegExReplace(apps[A_Index, 3], "\*", "[\w -_]*")
-        If (an && (pn~="^" an "$") && (apps[A_Index, 4]=cl)) || (!an && cl && (apps[A_Index, 4]=cl)) {
-            app_state:=apps[A_Index, 2], last_rule:=A_Index
+        an:=(apps[A_Index, 2]="*.*") ? "" : RegExReplace(apps[A_Index, 2], "\*", "[\w -_]*")
+        If (an && (pn~="^" an "$") && (apps[A_Index, 3]=cl)) || (!an && cl && (apps[A_Index, 3]=cl)) {
+            flag_state:=apps[A_Index, 5], ind_state:=apps[A_Index, 6], auto_state:=apps[A_Index, 7], last_rule:=A_Index
             Break
         }
     }
-    ;ToolTip % indicator "/" app_state,600,700, 7 ; индикация правил
-    If (app_state>0) || (indicator && !(app_state=0)) || WinExist("ahk_id" Gui5) {
+    ;ToolTip % flag "/" flag_state "`n" indicator "/" ind_state "`n" autocorrect "/" auto_state, 200, 0, 7 ; индикация правил
+
+    If (ind_state=1) || (indicator && !(ind_state=2)) || WinExist("ahk_id" Gui5) {
         If upd || !WinExist("ahk_id" IndHwnd) || (lang && (lang!=lang_in_old)) || (num!=num_in_old) || (scr!=scr_in_old) || (caps!=caps_in_old) || (autocorrect!=autocorrect_in_old) || (single_lang!=single_lang_in_old) {
             w_in:=width_in*MWRight//100, h_in:=(file_aspect && !text_flag) ? w_in*hf//wf : w_in*3//4
             x_in:=dx_in*MWRight//100-w_in//2, y_in:=dy_in*MWBottom//100-h_in//2
@@ -1677,7 +1661,7 @@ Flag:
     GetCaretLocation(_x, _y), x:=_x+DX, y:=_y+DY
     If wheel && ((_x!=x_wheel) || (_y!=y_wheel))
         wheel:=0
-    If flag && _x && _y && (FlagHwnd!=WinExist("A")) && !wheel {
+    If ((flag_state=1) || (flag && !(flag_state=2))) && _x && _y && (FlagHwnd!=WinExist("A")) && !wheel {
         If ((pFlag_old!=pFlag) && !flag_block) || (width!=width_old) || !WinExist("ahk_id" FlagHwnd) {
             fl_h:=(file_aspect && !text_flag) ? width*hf//wf : width*3//4,
             mn:=(!no_border && !text_flag) ? 1 : 0
@@ -1851,8 +1835,6 @@ LayoutsAndFlags:
     Loop % lang_menu_s.Length()
         If (lang_menu_s[A_Index]=lang_auto_single)
             lang_auto_single_sel:=A_Index
-    If (A_TickCount<120000) && (A_OSVersion~="^10")
-        SetInputLang(key_switch, lang_array[1, 1])
     If !A_ThisMenuItem
         Return
     LV_ModifyCol(1, "AutoHdr Center")
@@ -2162,41 +2144,48 @@ Space::
     Goto StatusBar
 
 ; Правила приложений
-Rules:
+AppRules:
     Gui 6:Destroy
-    Gui 6:-DpiScale +AlwaysOnTop +ToolWindow +LastFound +HwndGui6
+    Gui 6:-DPIScale +AlwaysOnTop +ToolWindow +LastFound +HwndGui6
     Gui 6:Default
-    Gui 6:Margin, 8, 6
-    Gui 6:Font, s9, Microsoft Sans Serif
+    Gui 6:Margin, 10, 8
+    Gui 6:Font, s8, Microsoft Sans Serif
     If A_IsCompiled
         Gui 6:Add, Picture, w32 x20 h-1 Icon7 gDetect, LangBarXX.exe
     Else
         Gui 6:Add, Picture, w32 x20 h-1 gDetect, % pict
     Gui 6:Add, Text, x+20 yp+6, Для создания правила перетащите кнопку на окно приложения!
-    Gui 6:Add, ListView, x8 w720 r16 -Multi NoSortHdr Checked +Grid -LV0x10  vapp gProperties, % " №|+/-|Имя файла|Класс окна|Описание/комментарий"
+    Gui 6:Add, ListView, x8 w860 r16 -Multi NoSortHdr Checked +Grid -LV0x10  vapp gProperties, % " №|Имя файла|Класс окна|Описание|Флажок|Инд-р|Авто"
     Loop % apps.Length()
-        LV_Add(apps[A_Index,1] ? "Check" : "", A_Index, apps[A_Index, 2] ? "+" : "-", apps[A_Index, 3], apps[A_Index, 4], apps[A_Index, 5])
-    LV_ModifyCol(1,"60 Center")
-    LV_ModifyCol(2,"40 Center")
-    LV_ModifyCol(3, "200")
-    LV_ModifyCol(4, "190")
+        LV_Add(apps[A_Index,1] ? "Check" : "", A_Index, apps[A_Index,2], apps[A_Index,3], apps[A_Index,4]
+        , (apps[A_Index, 5]=1) ? "+++" : (apps[A_Index, 5] ? "- - -" : "")
+        , (apps[A_Index, 6]=1) ? "+++" : (apps[A_Index, 6] ? "- - -" : "")
+        , (apps[A_Index, 7]=1) ? "+++" : (apps[A_Index, 7] ? "- - -" : ""))
+        
+    LV_ModifyCol(1,"70 Center")
+    LV_ModifyCol(2,"160")
+    LV_ModifyCol(3, "160")
+    LV_ModifyCol(4, "200")
+    LV_ModifyCol(5,"80 Center")
+    LV_ModifyCol(6,"80 Center")
+    LV_ModifyCol(7, "80 Center")
     Loop % LV_GetCount()
         LV_Modify(A_Index, "-Select")
-    LV_ModifyCol(5, (LV_GetCount()>16) ? 200:220)
     If (A_ThisHotkey~="\+(L|R)Shift$") && last_rule
         LV_Modify(last_rule, "Select Vis Focus")
-    ;Gui 6:Font, s9, Arial
-    Gui 6:Add, Button, x20 w160 gProperties, Редактировать
-    Gui 6:Add, Button, x+6 yp w70 gRuleUp, Вверх
-    Gui 6:Add, Button, x+6 yp wp gRuleDown, Вниз
-    Gui 6:Add, Button, x+6 yp w100 gRuleDelete, Удалить
-    Gui 6:Add, Button, x+110 yp w80 g6GuiClose, Cancel
-    Gui 6:Add, Button, x+6 yp wp gRulesSave, OK
+    Gui 6:Font, s9
+    Gui 6:Add, Button, x60 w160 h32 gProperties, Редактировать
+    Gui 6:Add, Button, x+6 yp w70 hp gRuleUp, Вверх
+    Gui 6:Add, Button, x+6 yp wp hp gRuleDown, Вниз
+    Gui 6:Add, Button, x+6 yp w100 hp gRuleDelete, Удалить
+    Gui 6:Add, Button, x+170 yp w80 hp g6GuiClose, Cancel
+    Gui 6:Add, Button, x+6 yp wp hp gRulesSave, OK
     Gui 6:Show,, Правила приложений
-    If (A_ThisHotkey~="\+(L|R)Shift$") && !lr {
+    If (A_ThisHotkey~="\+(L|R)Shift$") && !lr
         Tooltip Нет включенных правил`nдля данного приложения!, % MWRight//2-100, % MWBottom//2-20
-        SetTimer Tooltip, -3000
-    }
+    Else If (A_ThisHotkey~="\+(L|R)Shift$")
+        Tooltip Выделено правило для`nтекущего приложения!, % MWRight//2-100, % MWBottom//2-20
+    SetTimer Tooltip, -2500
     lr:=0
     Return
 
@@ -2226,18 +2215,22 @@ RuleDelete:
 RulesSave:
     Gui 6:Submit, Nohide
     apps:=[]
-    IniDelete % cfg, Apps
+    IniDelete % apps_cfg, Apps
     Loop % LV_GetCount() {
         r1:=(LV_GetNext(A_Index-1, "C")=A_Index) ? 1 : 0
         LV_GetText(r2, A_Index,2)
-        r2:=(r2="+") ? 1 : 0
         LV_GetText(r3, A_Index, 3)
         LV_GetText(r4, A_Index, 4)
+        r4:=RegExReplace(r4,"(:|;|,)", " "), r4:=RegExReplace(r4, " {2,}", " ")
         LV_GetText(r5, A_Index, 5)
-        r5:=RegExReplace(r5,"(:|;|,)", " "), r5:=RegExReplace(r5, " {2,}", " ")
-        app%A_Index%:=r1 "," r2 "," r3 "," r4 "," r5
-        IniWrite % app%A_Index%, % cfg, Apps, app%A_Index%
-        apps.Push([r1, r2, r3, r4, r5])
+        r5:=(r5~="\+") ? 1 : (r5 ? 2 : 0)
+        LV_GetText(r6, A_Index, 6)
+        r6:=(r6~="\+") ? 1 : (r6 ? 2 : 0)
+        LV_GetText(r7, A_Index, 7)
+        r7:=(r7~="\+") ? 1 : (r7 ? 2 : 0)
+        app%A_Index%:=r1 "," r2 "," r3 "," r4 "," r5 "," r6 "," r7
+        IniWrite % app%A_Index%, % apps_cfg, Apps, app%A_Index%
+        apps.Push([r1, r2, r3, r4, r5, r6, r7])
     }
 6GuiClose:
     Gui 6:Destroy
@@ -2262,42 +2255,56 @@ Detect:
     If (win=Gui6) || (class="Shell_TrayWnd") || (class="WorkerW") || (class="Progman")
         Return
 Properties:
-    row:=0
+    row:=0, flag_on:=ind_on:=auto_on:=0
     If (A_ThisLabel="Properties") {
         row:=(A_GuiEvent="DoubleClick") ? A_EventInfo : LV_GetNext(, "F")
         If (row=0) || (row>LV_GetCount())
             Return
-        LV_GetText(ch, row, 2)
-        LV_GetText(pr_name, row, 3)
+        LV_GetText(pr_name, row, 2)
         If !pr_name
             Return
-        LV_GetText(class, row, 4)
-        LV_GetText(description, row, 5)
+        LV_GetText(class, row, 3)
+        LV_GetText(description, row, 4)
+        LV_GetText(flag_on, row, 5)
+        LV_GetText(ind_on, row, 6)
+        LV_GetText(auto_on, row, 7)
     }
     Gui 7:Destroy
     Gui 7:Margin, 10, 6
     Gui 7:Default
-    Gui 7:+Owner6 +AlwaysOnTop +LastFound +ToolWindow +HwndGui7
-    Gui 7:Font, s9, Segoe UI
-    Gui 7:Add, Edit, x10 w160 vpr_name, % pr_name
+    Gui 7:+Owner6 -DPIScale +AlwaysOnTop +LastFound +ToolWindow +HwndGui7
+    Gui 7:Font, s8, Segoe UI
+    Gui 7:Add, Edit, x10 w240 vpr_name, % pr_name
     Gui 7:Add, Text, x+5 yp+2, - имя файла
-    Gui 7:Add, Button, x+10 yp-2 w60 gAll, Все!
-    Gui 7:Add, Edit, x10 w160 vclass ReadOnly, % class
+    Gui 7:Add, Button, x376 yp-2 w60 gAll, Все!
+    Gui 7:Add, Edit, x10 w240 vclass ReadOnly, % class
     Gui 7:Add, Text, x+5 yp+2, - класс окна
-    ;Gui 7:Add, Button, x260 yp-2 w60 gClassAll, Все!
-    Gui 7:Add, Edit, x10 w160 vdescription, % description
-    Gui 7:Add, Text, x+5 yp+2, - описание/комментарий
-    Gui 7:Add, Radio, x40 valways_on, Всегда включен
-    Gui 7:Add, Radio, x+20 yp valways_off, Всегда выключен
-    Gui 7:Add, Button, x90 w60 g7GuiCancel, Cancel
-    Gui 7:Add, Button, x+20 yp wp g7GuiOK, OK
-    GuiControl,, always_on, % (ch="+") ? 1 : 0
-    GuiControl,, always_off, % (ch="-") ? 1 : 0
+    ;Gui 7:Add, Button, x376 yp-2 w60 gEditClass, Edit
+    Gui 7:Add, Edit, x10 w240 vdescription, % description
+    Gui 7:Add, Text, x+5 yp+2, - Описание
+        Gui 7:Add, DropDownList, x10 w70 vflag_on, |+++|- - -
+    Gui 7:Add, Text, x+8 yp+2, Флаг
+    Gui 7:Add, DropDownList, x+16 yp-2 w70 vind_on, |+++|- - -
+    Gui 7:Add, Text, x+8 yp+2, Индикатор
+    Gui 7:Add, DropDownList, x+16 w70 vauto_on, |+++|- - -
+    Gui 7:Add, Text, x+8 yp+2, Авто
+    Gui 7:Add, Text, x4 w432 h1 0x4 
+    Gui 7:Add, Button, x90 w100 g7GuiCancel, Cancel
+    Gui 7:Add, Button, x+40 yp wp g7GuiOK, OK
+    If (A_ThisLabel="Properties") {
+        GuiControl, ChooseString, flag_on, % flag_on
+        GuiControl, ChooseString, ind_on, % ind_on
+        GuiControl, ChooseString, auto_on, % auto_on        
+    }
     Gui 7:Show, Center, Свойства окна
     Sleep 50
     Send {End}
     Return
-
+    
+EditClass:
+    GuiControl -ReadOnly, class
+    Return
+    
 7GuiCancel:
 7GuiClose:
     Gui 7:Destroy
@@ -2311,18 +2318,18 @@ Properties:
     }
     Gui 6:Default
     If row
-        LV_Modify(row,,, always_on ? "+" : "-", pr_name, class, description)
+        LV_Modify(row,, row, pr_name, class, description, flag_on, ind_on, auto_on)
     Else {
         Loop % LV_GetCount() {
-            LV_GetText(name, A_Index, 3)
-            LV_GetText(cl, A_Index, 4)
+            LV_GetText(name, A_Index, 2)
+            LV_GetText(cl, A_Index, 3)
             If (name=pr_name) && (cl=class) {
                 MsgBox, 4129, , Дубликат правила %A_Index%!, 2
                 Return
             }
         }
         row:=LV_GetCount()+1
-        LV_Add("Check", row, always_on ? "+" : "-", pr_name, class, description)
+        LV_Add("Check", row, pr_name, class, description, flag_on, ind_on, auto_on)      
     }
     Return
 
@@ -2537,10 +2544,8 @@ Autocorrect:
     }
     LV_ModifyCol(1, "60 AutoHdr Center")
     LV_ModifyCol(2, "208")
-    
 
-    Gui 8:Add, CheckBox, x420 y16 section vmin_length, Обработка текста с 3-х символов
-    Gui 8:Add, CheckBox, xs vletter_ignore, Игнорировать одельные буквы 
+    Gui 8:Add, CheckBox, x420 y16 section vletter_ignore, Игнорировать одельные буквы 
     Gui 8:Add, GroupBox, xp-16 y+6 w380 h94, Начальные границы слов
     Gui 8:Add, CheckBox, xs yp+28 vword_margins_enabled, Символы:
     w_margins:=""
@@ -2559,7 +2564,6 @@ Autocorrect:
     
     GuiControl,, only_main_dict, % only_main_dict
     GuiControl,, single_lang_only, % single_lang_only
-    GuiControl,, min_length, % min_length
     GuiControl,, sound, % sound
     GuiControl,, tray_tip, % tray_tip
     GuiControl,, no_indicate, % no_indicate
@@ -2798,7 +2802,7 @@ TextConvert:
     For each, ds in words
     {
         RegExMatch(ds, "^\s*\K\S+?(?=(/|\s|$))", ds)
-        If !(ds:=Trim(ds)) || (ds~="\s*^-+")
+        If (StrLen(Trim(ds))<2) || (ds~="\s*^-+")
             Continue
         If conv_as_text
             RegExMatch(ds, "(^|')\K\S+?(?=(`|$)", ds)
