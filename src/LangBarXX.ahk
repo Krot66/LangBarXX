@@ -15,7 +15,7 @@ SetTitleMatchMode 2
 SetTitleMatchMode Slow
 Process Priority,, A
 
-version:="1.5.2"
+version:="1.5.2.2"
 
 /*
 Использованы:
@@ -171,7 +171,7 @@ IniRead abbr_ignore, % cfg, Autocorrect, Abbr_Ignore, 0
 IniRead ctrlz_undo, % cfg, Autocorrect, Ctrlz_Undo, 1
 IniRead start_symbols_enabled, % cfg, Autocorrect, Start_Symbols_Enabled, 0
 IniRead start_symbols, % cfg, Autocorrect, Start_Symbols, % "({_=+""'"
-IniRead end_symbols_enabled, % cfg, Autocorrect, Start_Symbols_Enabled, 0
+IniRead end_symbols_enabled, % cfg, Autocorrect, End_Symbols_Enabled, 0
 IniRead end_symbols, % cfg, Autocorrect, End_Symbols, % ")}.,!?""'"
 IniRead digit_borders, % cfg, Autocorrect, Digit_Borders, 0
 IniRead new_lang_ignore, % cfg, Autocorrect, New_Lang_Ignore, 0
@@ -452,7 +452,7 @@ Loop {
 KeyArray(hook, vk, sc) {
     Global
     StringCaseSense Off
-    tstart:=A_TickCount, vk0:=vk, sc0:=sc, end_symb:=""
+    tstart:=A_TickCount, vk0:=vk, sc0:=sc
     
     If (GetKeyState("LCtrl", "P") || GetKeyState("RCtrl", "P")) && !(GetKeyState("RAlt", "P") || GetKeyState("AltGr", "P")) {
         ih.Stop(), stop:="Ctrl"
@@ -533,19 +533,15 @@ KeyArray(hook, vk, sc) {
                     , "Uint", 0
                     , "ptr", alt_lang)
             symb:=StrGet(&pwszBuff, n, "utf-16"), text_alt.=symb
-            If InStr(end_symbols, symb)
-                end_symb:=symb
         }
     }
-    OutputDebug % ih_old " " text_alt
+    ;OutputDebug % ih_old " " text_alt
     End:
     RegExMatch(ih_old, "\S+(?=\s?$)", text), RegExMatch(text_alt, "\S+(?=\s?$)", t_alt), RegExMatch(ih_old, "\S+\s*$", ct), str_length:=StrLen(ct)
         
     If text_convert || (new_lang && new_lang_ignore)  || (mouse_click && mouse_click_ignore) || (text~="\d") || (abbr_ignore && (text_alt==Format("{:U}", text_alt)) && (str_length>1))
         Return
-    t0:=RegExReplace(text, "\s$"), t0_alt:=RegExReplace(t_alt, "\s$")
-    If end_symb
-        t0_alt:=SubStr(t0_alt, 1, -1)        
+    t0:=RegExReplace(text, "\s$"), t0_alt:=RegExReplace(t_alt, "\s$")      
     If RegExMatch(user_dic, "mi`n)^" t0) {
         text_convert:=1
         Return
@@ -557,17 +553,18 @@ KeyArray(hook, vk, sc) {
     If (t0==Format("{:L}", t0))
         rs:="mi`n)^", t0:=Format("{:T}", t0), t0_alt:=Format("{:T}", t0_alt), tu:=1
         
+    If last_space
+        t0_alt:=(InStr(end_symbols, SubStr(t0_alt, 0)) && end_symbols_enabled) ? SubStr(t0_alt, 1, -1) : t0_alt,
+        t0:=(InStr(end_symbols, SubStr(t0, 0)) && end_symbols_enabled) ? SubStr(t0, 1, -1) : t0
+    
     t1:=Spell_Spell(d_%il%, t0) ? t0 : "" , t2:=Spell_Spell(d_%alt_lang%, t0_alt) ? t0_alt : ""
-    If last_space || end_symb {
-        If end_symb
-            KeyWait Shift
+    If last_space
         Sleep 50 ; иначе смещаются слова!
-    }
-    If !last_space && !end_symb && !t1
+    If !last_space && !t1
         Spell_Suggest(d_%il%, t0, list_curr), RegExMatch(list_curr, rs . t0, t1)
-    If !last_space && !end_symb && !t2
+    If !last_space && !t2
         Spell_Suggest(d_%alt_lang%, t0_alt, list_alt), RegExMatch(list_alt, rs . t0_alt, t2),      
-    OutputDebug % t0 "/" t0_alt "  kn: " key_name " t1: " t1 "t2: " t2 " len: " str_length
+    ;OutputDebug % t0 "/" t0_alt "  kn: " key_name " t1: " t1 "t2: " t2 " len: " str_length
     ;OutputDebug % il "`n" list_curr "`n" list_alt
     
     If ttip {
@@ -1403,6 +1400,9 @@ FlagToggle:
 <^<+RShift::
 >^>+LShift::
 IndicatorToggle:
+    KeyWait % RegExReplace(A_ThisHotkey, "^\W+"), T0.8
+    If ErrorLevel && (A_ThisHotkey~="Shift")
+        Goto IndicatorSettings
     indicator:=!indicator
     Menu Indicator, % indicator ? "Check" : "Uncheck", 1&
     If !indicator {
