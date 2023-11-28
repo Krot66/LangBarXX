@@ -19,6 +19,7 @@ LicenseFile=_Installer\LGPL-3.0.txt
 Uninstallable=not IsTaskSelected('portablemode')
 OutputDir=D:\Soft\LangBarXX
 OutputBaseFilename=LangBarXX_setup
+DisableDirPage=no
 Compression=lzma
 SolidCompression=yes
 PrivilegesRequired=lowest
@@ -26,26 +27,61 @@ ArchitecturesInstallIn64BitMode=x64 ia64
 WizardImageFile=_Installer\WizModernImage-IS.bmp
 WizardSmallImageFile=_Installer\WizModernSmallImage-IS.bmp
 SetupIconFile=_Installer\Install.ico
+ShowLanguageDialog=no
 
 [Languages]
+Name: "english"; MessagesFile: "compiler:Languages\English.isl"
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
 [Tasks]
-Name: portablemode; Description:  "Портативная версия"; Flags: unchecked
+Name: portablemode; Description:  "Portable version"; Flags: unchecked
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkablealone
 
+[Types]
+Name: "standard"; Description: "Standard (En-Ru) installation"
+Name: "full"; Description: "Full installation"
+Name: "minimal"; Description: "Minimal installation"
+Name: "custom"; Description: "Custom installation"; Flags: iscustom
+
+[Components]
+Name: "program"; Description: "Program Files"; Types: full standard minimal custom; Flags: fixed
+Name: "demon"; Description: "LB_WhatchDog - demon"; Types: full standard
+Name: "flags"; Description: "Country png-flags"; Types: full standard
+Name: "editor"; Description: "AkelPad portable editor"; Types: full standard
+Name: "hunspell"; Description: "Hunspell-based autocorrect"; Types: full standard
+Name: "hunspell\en"; Description: "English dictionary"; Types: full standard
+; Name: "hunspell\fr"; Description: "French dictionary"; Types: full
+; Name: "hunspell\de"; Description: "Deutch dictionary"; Types: full
+Name: "hunspell\ru"; Description: "Russian dictionary"; Types: full standard
+Name: "hunspell\be"; Description: "Belarussian dictionary"; Types: full
+Name: "hunspell\uk"; Description: "Ukrainian dictionary"; Types: full
+
+
 [Files]
-Source: "LangBarXX64.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "LangBarXX.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{app}\flags\*"; DestDir: "{app}\flags_old"; Flags: external skipifsourcedoesntexist
-Source: "{app}\masks\*"; DestDir: "{app}\masks_old"; Flags: external skipifsourcedoesntexist
-Source: "bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion
-Source: "flags\*"; DestDir: "{app}\flags"; Flags: ignoreversion
-Source: "masks\*"; DestDir: "{app}\masks"; Flags: ignoreversion
-Source: "doc\*"; DestDir: "{app}\doc"; Flags: ignoreversion recursesubdirs
-Source: "dict\*"; DestDir: "{app}\dict"; Flags: ignoreversion recursesubdirs
-Source: "hunspell\*"; DestDir: "{app}\hunspell"; Flags: ignoreversion
-Source: "editor\*"; DestDir: "{app}\editor"; Flags: ignoreversion recursesubdirs
+Source: "LangBarXX64.exe"; DestDir: "{app}"; Components: program; Flags: ignoreversion
+Source: "LangBarXX.exe"; DestDir: "{app}"; Components: program; Flags: ignoreversion
+Source: "bin\7zr.exe"; DestDir: "{app}\bin"; Components: program; Flags: ignoreversion
+Source: "doc\*"; DestDir: "{app}\doc"; Components: program; Flags: ignoreversion recursesubdirs
+Source: "{app}\masks\*"; DestDir: "{app}\masks_old"; Components: program; Flags: external skipifsourcedoesntexist
+Source: "masks\*"; DestDir: "{app}\masks"; Components: program; Flags: ignoreversion
+
+Source: "bin\LB_WatchDog.exe"; DestDir: "{app}\bin"; Components: demon; Flags: ignoreversion
+
+Source: "editor\*"; DestDir: "{app}\editor"; Components: editor; Flags: ignoreversion recursesubdirs
+
+Source: "{app}\flags\*"; DestDir: "{app}\flags_old"; Components: flags; Flags: external skipifsourcedoesntexist
+Source: "flags\*"; DestDir: "{app}\flags"; Components: flags; Flags: ignoreversion
+
+Source: "hunspell\*"; DestDir: "{app}\hunspell"; Components: hunspell; Flags: ignoreversion
+
+Source: "dict\en-US\*"; DestDir: "{app}\dict\en-US"; Components: hunspell\en; Flags: ignoreversion recursesubdirs
+; Source: "dict\fr-FR\*"; DestDir: "{app}\dict\fr-FR"; Components: hunspell\fr; Flags: ignoreversion recursesubdirs
+; Source: "dict\de-DE\*"; DestDir: "{app}\dict\en-US"; Components: hunspell\de; Flags: ignoreversion recursesubdirs
+Source: "dict\ru-RU\*"; DestDir: "{app}\dict\ru-RU"; Components: hunspell\ru; Flags: ignoreversion recursesubdirs
+Source: "dict\be-BY\*"; DestDir: "{app}\dict\be-BY"; Components: hunspell\be; Flags: ignoreversion recursesubdirs
+Source: "dict\uk-UA\*"; DestDir: "{app}\dict\uk-UA"; Components: hunspell\uk; Flags: ignoreversion recursesubdirs
+
+; Import
 Source: "{src}\flags\*"; DestDir: "{app}\flags"; Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{src}\masks\*"; DestDir: "{app}\masks"; Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{src}\config\*"; DestDir: "{userappdata}\LangBarXX"; Check: not IsTaskSelected('portablemode'); Flags: external skipifsourcedoesntexist ignoreversion
@@ -53,7 +89,6 @@ Source: "{src}\config\*"; DestDir: "{app}\config"; Check: IsTaskSelected('portab
 
 [Dirs]
 Name: "{app}\config"; Check: IsTaskSelected('portablemode')
-Name: "{app}\backup"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\LangBarXX.exe"; Check: not IsTaskSelected('portablemode') and not Is64BitInstallMode
