@@ -15,7 +15,7 @@ SetTitleMatchMode 2
 SetTitleMatchMode Slow
 Process Priority,, A
 
-version:="1.5.4"
+version:="1.5.6"
 
 /*
 Использованы:
@@ -62,13 +62,16 @@ If !editor
     editor:="notepad.exe"
 
 If FileExist("config") ; конфигурация портативная или установленная
-    cfg_folder:=A_ScriptDir "\config", cfg:="config\langbarxx.ini", apps_cfg:="config\apps_rules.ini" 
+    cfg_folder:=A_ScriptDir "\config"
 Else {
-    cfg_folder:=A_AppData "\LangBarXX", cfg:=cfg_folder "\langbarxx.ini", apps_cfg:=cfg_folder "\apps_rules.ini"
+    cfg_folder:=A_AppData "\LangBarXX"
     FileCreateDir % cfg_folder
     If FileExist(cfg_folder "\temp.txt")
         Gosub USB-Version
 }
+cfg:=cfg_folder "\langbarxx.ini",
+apps_cfg:=cfg_folder "\apps_rules.ini",
+hs_cfg:=cfg_folder "\hotstrings.ini"
 If !FileExist(cfg_folder "\user_dict.dic")
     FileAppend,, % cfg_folder "\user_dict.dic", UTF-8
 
@@ -294,6 +297,7 @@ Menu Select, Add,
 Menu Select, Add, Задержки выделения, GUI
 Menu Tray, Add, Правила приложений, AppRules
 Menu Tray, Add, Выделение, :Select
+Menu Tray, Add, Автозамена, Autoreplace
 Menu Tray, Add
 
 Menu Autorun, Add, Включить, Autorun
@@ -320,9 +324,9 @@ If A_IsCompiled {
     Menu, Tray, Icon, 7&, % A_ScriptFullPath, 3
     Menu, Tray, Icon, 8&, % A_ScriptFullPath, 3
     Menu, Tray, Icon, 9&, % A_ScriptFullPath, 3
-    Menu, Tray, Icon, 16&, % A_ScriptFullPath, 4
-    Menu, Tray, Icon, 20&, % A_ScriptFullPath, 5
-    Menu, Tray, Icon, 21&, % A_ScriptFullPath, 6
+    Menu, Tray, Icon, 17&, % A_ScriptFullPath, 4
+    Menu, Tray, Icon, 21&, % A_ScriptFullPath, 5
+    Menu, Tray, Icon, 22&, % A_ScriptFullPath, 6
 }
 
 Menu Flag, % flag ? "Check" : "Uncheck", 1&
@@ -389,12 +393,46 @@ If A_IsCompiled && FileExist("bin\LB_WatchDog.exe") {
 pToken:=Gdip_Startup()
 
 Gosub LayoutsAndFlags
+
+IniRead end_space, % hs_cfg, Main, end_space, 1
+IniRead end_tab, % hs_cfg, Main, end_tab, 1
+IniRead end_enter, % hs_cfg, Main, end_enter, 0
+endchars.=end_tab ? "`t" : "", endchars.=end_space ? " " : "", endchars.=end_enter ? "`n" : ""
+Hotstring("EndChars", endchars)
+IniRead case_sens, % hs_cfg, Main, case_sens, 0
+If case_sens
+    Hotstring("C")
+
+hs:=[]
+Loop {
+    IniRead h1, % hs_cfg, % A_Index, enabled, % " "
+    IniRead h2, % hs_cfg, % A_Index, hotstring, % " "
+    IniRead h3, % hs_cfg, % A_Index, options, % " "
+    IniRead h4, % hs_cfg, % A_Index, replacement, % " "
+    If !h2 && !h4
+        Break
+    hs.Push([h1, h2, h3, h4]), hs_numb:=A_Index
+    If h1 {
+        hs_pr:="X", hs_string:=""
+        If SubStr(h3, 2, 1)
+            hs_pr.="*"
+        If SubStr(h3, 3, 1)
+            hs_pr.="?"
+        If SubStr(h3, 1, 1) {
+            Loop % lang_array.Length()
+                If (lang_array[A_Index, 1]!=0x0409) && (h2_alt:=StringToAnotherLayout(h2, 0x0409, lang_array[A_Index, 1]))
+                    h2.="," h2_alt                                
+        }
+        Loop Parse, h2, `,
+            Hotstring(":" hs_pr ":" A_LoopField, "HS_Run")
+        hs[hs_numb, 5]:=h2
+    }         
+}
+
 Gosub FlagGui
 Gosub IndicatorGui
 Gosub Masks
-
 lang_old:=lang_array[1,1]
-
 SetTimer Settings, 30000
 SetTimer TrayIcon, 100
 Sleep 300 
@@ -405,6 +443,7 @@ If FileExist("hunspell") {
 }
 Gosub EmptyMem
 SetTimer EmptyMem, 150000
+
 
 ;==================================================
 endkeys:="{Esc}{AppsKey}{LWin}{RWin}{F1}{F2}{F3}{F4}{F5}{F6}{F7}{F8}{F9}{F10}{F11}{F12}{Left}{Right}{Up}{Down}{Home}{End}{PgUp}{PgDn}{Del}{NumpadDel}{Ins}{NumpadIns}"
@@ -473,10 +512,7 @@ KeyArray(hook, vk, sc) {
     prefix:=GetKeyState("AltGr", "P") ? "<^>!" : prefix,
     prefix:=(GetKeyState("LCtrl", "P") && GetKeyState("LAlt", "P")) ? "^!" : prefix,
     vk:=Format("vk{:x}", vk), sc:=Format("sc{:x}", sc),
-    ks.Push([prefix "{" sc "}", GetKeyState("CapsLock", "T")]), key_string.=prefix "{" sc "}", ksl:=ks.Length()        
-    If (ks[ksl, 1]=ks[ksl-1, 1]) && (ks[ksl, 1]=ks[ksl-2, 1]) && GetKeyState(vk, "P") {
-        Return        
-    }
+    ks.Push([prefix "{" sc "}", GetKeyState("CapsLock", "T")]), key_string.=prefix "{" sc "}", ksl:=ks.Length()               
 
     If ((print_win:=WinExist("A"))!=print_win_old) 
         mouse_click:=new_lang:=text_convert:=key_name:=""    
@@ -561,6 +597,9 @@ KeyArray(hook, vk, sc) {
     If last_space
         t0_alt:=(InStr(end_symbols, SubStr(t0_alt, 0)) && end_symbols_enabled) ? SubStr(t0_alt, 1, -1) : t0_alt,
         t0:=(InStr(end_symbols, SubStr(t0, 0)) && end_symbols_enabled) ? SubStr(t0, 1, -1) : t0
+        
+    If (ks[ksl, 1]=ks[ksl-1, 1]) && (ks[ksl, 1]=ks[ksl-2, 1]) && GetKeyState(vk, "P")
+        Return ; выше нельзя - будет автопереключение при исправлении!
     
     t1:=Spell_Spell(d_%il%, t0) ? t0 : "" , t2:=Spell_Spell(d_%alt_lang%, t0_alt) ? t0_alt : ""
     If last_space
@@ -601,7 +640,7 @@ KeyArray(hook, vk, sc) {
         Return
     }
     
-    If (((last_space || end_symb) && str_length) || (str_length>(min_length ? 2 : 1))) && t2 && !t1 && !conv {
+    If (((last_space || end_symb) && str_length) || (str_length>(min_length ? 2 : 1))) && t2 && !t1 && !conv && !text_convert {
         If !(last_space || end_symb) && !wait_next {
             wait_next:=1
             Return
@@ -657,10 +696,17 @@ DelAccent(txt) {
 
 #If (InputLayout()~=ctrl_capslock_langs) && ctrl_capslock_langs && !(autocorrect && text_convert && out_orig)
 ^CapsLock::
+    Critical On
+    Hotkey *LCtrl, Return, On
+    Hotkey *CapsLock, Return, On
     cls:=GetKeyState("CapsLock", "T")
-    SetCapsLockState Off 
+    SetCapsLockState Off
+    Send {LCtrl up}
     Gosub Translate
     SetCapsLockState % cls ? "On" : "Off"
+    Hotkey *LCtrl, Return, Off
+    Hotkey *CapsLock, Return, Off
+    Critical Off
     Return
 
 #If (InputLayout()~=pause_langs) && pause_langs && !(autocorrect && text_convert && out_orig)
@@ -761,7 +807,9 @@ Select:
         }
         sel:=SubStr(text, StrLen(rem)+1), out.RemoveAt(1, StrLen(rem)), flag_block:=""
         KeyWait % button, T1
+        KeyWait LShift, T1
         KeyWait RShift, T1
+        KeyWait LCtrl, T1
         KeyWait RCtrl, T1
         Sleep 50
         If (button~="(RButton|MButton)")
@@ -800,12 +848,11 @@ Convert:
 ReConvert:
     Sleep 100
     Critical
-    out:=[], convert:="", HKL:=InputLayout()
+    out:=[], convert:=""
     Loop Parse, sel
     {
-        lchar:=(s%c_lang% && InStr(s%c_lang%, A_LoopField, 1)) ? DelAccent(A_LoopField) : A_LoopField       
-        val:=DllCall("VkKeyScanEx", "Char", Asc(lchar), "UInt", HKL)
-        If (val<0) {
+        val:=DllCall("VkKeyScanEx", "Char", Asc(A_LoopField), "UInt", InputLayout())
+        If (val=-1) {
             If (lang_count=2) && (A_ThisLabel="Convert") && (button~="(Pause|BS|RButton|CapsLock)") {
                 SetInputLang(key_switch)
                 Goto Reconvert
@@ -815,14 +862,7 @@ ReConvert:
             SetInputLang(key_switch, lang_start)
             Exit
         }
-        ;If InStr(dk%c_lang%, A_LoopField, 1) {
-            ;d_key:=1
-            ;Continue
-        ;}
-        ;If d_key {
-            ;
-        ;}
-        vk:=vk_start:="vk" Format("{:x}", val), prx:=""
+        vk:=vk_start:="vk" SubStr(Format("{:x}", val), -2), prx:=""
         If (vk="vk20d") ; удаление двойных переносов
             continue
         If (vk~="^vk1\w\w$")
@@ -894,7 +934,7 @@ MButton::
     SendText(InvertCase(sel))
     Return
 
-#If (capslock=3) && (InputLayout()~=pause_langs) && pause_langs && !GetKeyState("LControl", "P")
+#If (capslock=3) && (InputLayout()~=pause_langs) && pause_langs
 CapsLock::
     If autocorrect && text_convert {
         KeyWait CapsLock
@@ -1022,13 +1062,13 @@ RCtrl up::
     ih.Stop(), new_lang:=1, key_name:=text_convert:=""
     Return
 
-#If (capslock=-1) && !GetKeyState("LControl", "P")
+#If (capslock=-1)
 CapsLock::Shift
 
-#If !capslock && !GetKeyState("LControl", "P")
+#If !capslock
 CapsLock::Return
 
-#If (capslock=2) && !GetKeyState("LControl", "P")
+#If (capslock=2)
 CapsLock::
     SetInputLang(key_switch)
     KeyWait CapsLock, T1
@@ -1045,7 +1085,7 @@ CapsLock::
     SendText(InvertCase(sel))
     Return
 
-#If (capslock=5) && !GetKeyState("LControl", "P")
+#If (capslock=5)
 CapsLock::
     Gosub Select
     SendText(InvertCase(sel))
@@ -2997,5 +3037,228 @@ Statistics:
 #F1::
     KeyHistory
     Pause
+    Return
+
+; ----------- Автозамена -------------
+HS_Run() {
+    Global
+    Critical On
+    text_convert:=1
+    hstr:=RegExReplace(A_ThisHotkey, "^.+:")
+    Loop % hs.Length() {        
+        If case_sense {
+            StringCaseSense On
+            If hstr not in % hs[A_Index, 5]
+                Continue
+        }
+        Else {
+            StringCaseSense Off
+            If hstr not in % hs[A_Index, 5]
+                Continue
+        }   
+        out:=hs[A_Index, 4], n:=0
+        Loop {
+            n:=RegExMatch(out, "%A_\w+%", expr, n+1)
+            If !expr
+                Break
+            ex:=StrReplace(expr, "%"), val:=%ex%
+            If val
+                out:=StrReplace(out, expr, val)                
+        }
+    }
+    out:=StrReplace(out, "``t", "{Tab}")
+    out:=StrReplace(out, "``n", "{Enter}")
+    SendInput % out
+    Critical Off
+}
+
+Autoreplace:
+    Gui 12:Destroy
+    Gui 12:-DPIScale +AlwaysOnTop +ToolWindow +LastFound +HwndGui12
+    Gui 12:Default
+    Gui 12:Margin, 10, 8
+    Gui 12:Font, s9, Microsoft Sans Serif
+    Gui 12:Add, Button, h36 w120 gEdit, + Добавить
+    Gui 12:Add, Text, x+20 yp+7, Завершения:
+    Gui 12:Add, CheckBox, x+8 yp vend_space, Пробел
+    Gui 12:Add, CheckBox, x+4 yp vend_tab, Табуляция
+    Gui 12:Add, CheckBox, x+4 yp vend_enter, Ввод
+    Gui 12:Add, CheckBox, x+50 yp vcase_sens, С учетом регистра
+    Gui 12:Add, ListView, x8 w860 r16 -Multi NoSortHdr Checked +Grid -LV0x10  vapp gHS +HwndLV2, % " №|Сокращение|Опции|Автозамена"
+    Loop % hs.Length() {
+        h4:=hs[A_Index, 4],
+        h4:=StrReplace(h4, "````", "``"),
+        h4:=StrReplace(h4, "``n", "`r`n"),
+        h4:=StrReplace(h4, "``t", A_Tab),
+        h4:=StrReplace(h4, "```;", "`;")
+        LV_Add(hs[A_Index, 1] ? "Check" : "", A_Index, hs[A_Index, 2], hs[A_Index, 3], h4)    
+    }
+    LV_ModifyCol(1,"70 Center")
+    LV_ModifyCol(2,"140")
+    LV_ModifyCol(3,"100")
+    LV_ModifyCol(4,"540")
+    Gui 12:Font, s9
+    Gui 12:Add, Button, x60 w160 h32 gHS, Редактировать
+    Gui 12:Add, Button, x+6 yp w70 hp gRuleUp, Вверх
+    Gui 12:Add, Button, x+6 yp wp hp gRuleDown, Вниз
+    Gui 12:Add, Button, x+6 yp w100 hp gRuleDelete, Удалить
+    Gui 12:Add, Button, x+170 yp w80 hp g12GuiClose, Cancel
+    Gui 12:Add, Button, x+6 yp wp hp gSaveRules, OK
+    GuiControl,, end_space, % end_space
+    GuiControl,, end_tab, % end_tab
+    GuiControl,, end_enter, % end_enter
+    GuiControl,, case_sens, % case_sens
+    Gui 12:Show,, Автозамена
+    Return
+
+;RuleUp2:
+    ;row:=LV_GetNext(, "F")
+    ;LV_MoveRow(LV2, row, row-1)
+    ;Return
+
+;RuleDown2:
+    ;row:=LV_GetNext(, "F")
+    ;rn:=LV_MoveRow(LV2, row, row+1)
+    ;Return
+        
+SaveRules:
+    Gui 12:Submit, Nohide
+    hotstrings:=[]
+    FileDelete % hs_cfg
+    IniWrite % end_space, % hs_cfg, Main, end_space
+    IniWrite % end_tab, % hs_cfg, Main, end_tab 
+    IniWrite % end_enter, % hs_cfg, Main, end_enter
+    IniWrite % case_sens, % hs_cfg, Main, case_sens 
+    Loop % LV_GetCount() {
+        h1:=(LV_GetNext(A_Index-1, "C")=A_Index) ? 1 : 0
+        LV_GetText(h2, A_Index, 2)
+        LV_GetText(h3, A_Index, 3)
+        LV_GetText(h4, A_Index, 4)
+        IniWrite % h1, % hs_cfg, % A_Index, enabled
+        IniWrite % """" h2 """", % hs_cfg, % A_Index, hotstring
+        IniWrite % """" h3 """", % hs_cfg, % A_Index, options
+        h4:=StrReplace(h4, "``", "````"),
+        h4:=StrReplace(h4, "`r`n", "``n"),
+        h4:=StrReplace(h4, "`n", "``n"), 
+        h4:=StrReplace(h4, A_Tab, "``t"),
+        h4:=StrReplace(h4, "`;", "```;")
+        IniWrite % """" h4 """", % hs_cfg, % A_Index, replacement
+    }
+    Sleep 200
+    Reload
+    
+12GuiClose:
+    Gui 12:Destroy
+    Return
+
+#If WinActive("ahk_id" Gui12)
+Esc::Goto 12GuiClose
+#If
+
+HS:
+    row:=(A_GuiEvent="DoubleClick") ? A_EventInfo : LV_GetNext(, "F")
+    If (row=0) || (row>LV_GetCount())
+        Return
+    Gui 12:Default
+    LV_GetText(hse, row, 2)
+    LV_GetText(opt, row, 3)
+    LV_GetText(replacement, row, 4)
+    all_lang:=SubStr(opt, 1, 1) ? 1 : 0,
+    exact:=SubStr(opt, 2, 1) ? 1 : 0,
+    in_word:=SubStr(opt, 3, 1) ? 1 : 0,
+    add_rule:=0
+    
+Edit:
+    Suspend On
+    If (A_ThisLabel="Edit")
+        hse:=replacement:="", add_rule:=1
+    Gui 13:Destroy
+    Gui 13:Margin, 10, 6  
+    Gui 13:Default
+    Gui 13:+Owner12 -DPIScale +AlwaysOnTop +LastFound +ToolWindow +HwndGui13
+    Gui 13:Font, s9, Microsoft Sans Serif
+    Gui 13:Add, Edit, x30 y30 w120 r1 vhse, % hse
+    Gui 13:Font, s8
+    Gui 13:Add, CheckBox, x+30 y10 section vall_lang, Все раскладки (только английские символы!)
+    Gui 13:Add, CheckBox, xs vexact, Точное соответствие (без завершающих клавиш)    
+    Gui 13:Add, CheckBox, xs vin_word, Внутри слов, без предшествующего пробела
+    Gui 13:Font, s9
+    Gui 13:Add, Edit, x10 w600 r6 vreplacement WantTab, % replacement
+    Gui 13:Add, Button, x30 w160 gVariables h32, Переменные
+    Gui 13:Add, Button, x+10 yp wp hp gPreview, Предпросмотр
+    Gui 13:Add, Button, x+60 yp hp w80 g13GuiClose, Cancel
+    Gui 13:Add, Button, x+10 yp hp w80 gHS_Save, OK
+    If (A_ThisLabel="HS") {
+        GuiControl,, all_lang, % all_lang
+        GuiControl,, exact, % exact
+        GuiControl,, in_word, % in_word
+    }
+    Gui 13:Show,, Автозамена - настройки
+    Send {End}
+    Return
+    
+Variables:
+    Run doc\Variables.html
+    If ErrorLevel
+        Run % A_WinDir "\System32\OpenWith.exe " """" A_ScriptDir "doc\Variables.html"""
+    Return
+    
+Preview:
+    Gui 13:Submit, Nohide
+    out:=replacement, n:=0
+    Loop {
+        n:=RegExMatch(out, "%A_\w+%", expr, n+1)
+        If !expr
+            Break
+        ex:=StrReplace(expr, "%"), val:=%ex%
+        If val
+            out:=StrReplace(out, expr, val)                
+    }
+    Gui 14:Destroy
+    Gui 14:Margin, 10, 6 
+    Gui 14:Font, s9, Microsoft Sans Serif
+    Gui 14:+Owner13 -DPIScale +AlwaysOnTop +LastFound +ToolWindow +HwndGui14
+    Gui 14:Add, Edit, r6 w720 vPreview ReadOnly, % out
+    Gui 14:Show,, Предпросмотр
+    Send {End}
+    Return
+    
+13GuiClose:
+    Gui 13:Destroy
+    Suspend Off
+    Return
+    
+HS_Save:
+    Gui 13:Submit, Nohide
+    If !hse || !replacement {
+        ToolTip Пустые поля!, % A_ScreenWidth//2-50, % A_ScreenHeight//2
+        SetTimer ToolTip, -1000
+        Return
+    }
+    If all_lang && (StringToAnotherLayout(hse, 0x0409, 0x0409)!=hse) {
+        ToolTip Для работы со всеми раскладками в строке`nввода допустимы только английские символы!, % A_ScreenWidth//2-200, A_ScreenHeight//2
+        SetTimer ToolTip, -3000
+        Return
+    }
+    If add_rule {
+        Loop % hs.Length() {
+            If (hse==hs[A_Index, 2]) {
+                ToolTip Дубликат правила %A_Index%!, % A_ScreenWidth//2-100, A_ScreenHeight//2
+                SetTimer ToolTip, -2000
+                Return                
+            }            
+        }
+    }
+    Gui 13:Destroy
+    opt:="",
+    opt.=all_lang ? 1 : 0,
+    opt.=exact ? 1 : 0,
+    opt.=in_word ? 1 : 0
+    Gui 12:Default
+    If add_rule
+        LV_Add("Check", LV_GetCount()+1, hse, opt, replacement)
+    Else
+        LV_Modify(row,,, hse, opt, replacement)
+    Suspend Off
     Return
 

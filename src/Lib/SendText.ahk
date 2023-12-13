@@ -28,6 +28,6 @@
         SetStoreCapsLockMode On
         Return
     }
-    Send % "{Text}" txt
+    SendInput % "{Text}" txt
     Return
 }
