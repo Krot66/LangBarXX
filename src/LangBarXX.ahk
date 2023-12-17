@@ -5,7 +5,7 @@
 #InstallKeybdHook
 #KeyHistory 0
 If A_IsCompiled
-    ListLines Off    
+    ListLines Off 
 SetWinDelay 20
 CoordMode Caret
 CoordMode Tooltip
@@ -15,7 +15,7 @@ SetTitleMatchMode 2
 SetTitleMatchMode Slow
 Process Priority,, A
 
-version:="1.5.6"
+version:="1.5.8"
 
 /*
 Использованы:
@@ -74,7 +74,6 @@ apps_cfg:=cfg_folder "\apps_rules.ini",
 hs_cfg:=cfg_folder "\hotstrings.ini"
 If !FileExist(cfg_folder "\user_dict.dic")
     FileAppend,, % cfg_folder "\user_dict.dic", UTF-8
-
 
 ; ====== Обработка старых версий ======
 If FileExist("langbarxx.ini") && FileExist("config") && !FileExist("config\langbarxx.ini")
@@ -394,14 +393,20 @@ pToken:=Gdip_Startup()
 
 Gosub LayoutsAndFlags
 
+IniRead scrolllock_show, % hs_cfg, Main, scrolllock_show, 0
 IniRead end_space, % hs_cfg, Main, end_space, 1
 IniRead end_tab, % hs_cfg, Main, end_tab, 1
 IniRead end_enter, % hs_cfg, Main, end_enter, 0
-endchars.=end_tab ? "`t" : "", endchars.=end_space ? " " : "", endchars.=end_enter ? "`n" : ""
+IniRead end_chars_enabled, % hs_cfg, Main, end_chars_enabled, 0
+IniRead end_chars, % hs_cfg, Main, end_chars, -()[]{}:;'"/\,.?!
+endchars:=(end_chars_enabled ? end_chars : "") . (end_tab ? "``t" : "") . (end_space ? " " : "") . (end_enter ? "``n" : "")
 Hotstring("EndChars", endchars)
 IniRead case_sens, % hs_cfg, Main, case_sens, 0
 If case_sens
     Hotstring("C")
+    
+pid:=DllCall("GetCurrentProcessId")
+Hotkey, IfWinNotActive, ahk_pid %pid%
 
 hs:=[]
 Loop {
@@ -411,6 +416,8 @@ Loop {
     IniRead h4, % hs_cfg, % A_Index, replacement, % " "
     If !h2 && !h4
         Break
+    If RegExMatch(h4, "Clips\\\d{10,}", clipfile)
+        used_files.=cfg_folder "\" clipfile ","
     hs.Push([h1, h2, h3, h4]), hs_numb:=A_Index
     If h1 {
         hs_pr:="X", hs_string:=""
@@ -428,6 +435,11 @@ Loop {
         hs[hs_numb, 5]:=h2
     }         
 }
+Loop Files, % cfg_folder "\Clips\*"
+    If A_LoopFileFullPath not in % used_files
+        FileRecycle % A_LoopFileFullPath
+
+Hotkey, IfWinNotActive
 
 Gosub FlagGui
 Gosub IndicatorGui
@@ -542,7 +554,7 @@ KeyArray(hook, vk, sc) {
     If (digit_borders && (sc~="^(sc[2-9a-dA-D])$")) || (start_symbols_enabled && InStr(start_symbols, last_symb))
         st_symb:=StrLen(ih_old)
     If (key_name="Backspace") {
-        text_alt:=SubStr(text_alt, 1, -1), ks.Pop(), ks.Pop()
+        ih_alt:=SubStr(ih_alt, 1, -1), ks.Pop(), ks.Pop()
         If backspace_ignore
             text_convert:=1
         Return
@@ -697,9 +709,9 @@ DelAccent(txt) {
 #If (InputLayout()~=ctrl_capslock_langs) && ctrl_capslock_langs && !(autocorrect && text_convert && out_orig)
 ^CapsLock::
     Critical On
+    cls:=cls_old
     Hotkey *LCtrl, Return, On
     Hotkey *CapsLock, Return, On
-    cls:=GetKeyState("CapsLock", "T")
     SetCapsLockState Off
     Send {LCtrl up}
     Gosub Translate
@@ -1249,7 +1261,7 @@ Reset:
     If (Result == "OK") {
         If CheckText
             Run % "bin\7zr.exe a backup\backup_" A_YYYY "." A_MM "." A_DD "_" A_Hour "." A_Min "." A_Sec ".zip " cfg_folder "\*"  
-        FileDelete % cfg
+        FileDelete % cfg "\*.*"
         Sleep 200
         Reload
     }
@@ -1553,7 +1565,7 @@ Pos:
     Return
 
 +WheelDown::
-    If (width>16)
+    If (width>12)
         width-=2, mess:="Размер`n" width "x" width*3//4 " px"
     Goto Pos
 
@@ -1845,7 +1857,7 @@ Flag:
     }
     Else
         Gui FlagHwnd:Hide
-    lastwin_old:=lastwin 
+    lastwin_old:=lastwin, cls_old:=GetKeyState("CapsLock", "T") 
     Return
 
 LayoutsAndFlags:
@@ -3043,9 +3055,10 @@ Statistics:
 HS_Run() {
     Global
     Critical On
-    text_convert:=1
-    hstr:=RegExReplace(A_ThisHotkey, "^.+:")
-    Loop % hs.Length() {        
+    BlockInput On
+    SetTimer BlockInputOff, -3000
+    hstr:=RegExReplace(A_ThisHotkey, "^.+:"), text_convert:=1
+    Loop % hs.Length() {
         If case_sense {
             StringCaseSense On
             If hstr not in % hs[A_Index, 5]
@@ -3055,22 +3068,64 @@ HS_Run() {
             StringCaseSense Off
             If hstr not in % hs[A_Index, 5]
                 Continue
-        }   
-        out:=hs[A_Index, 4], n:=0
-        Loop {
-            n:=RegExMatch(out, "%A_\w+%", expr, n+1)
-            If !expr
-                Break
-            ex:=StrReplace(expr, "%"), val:=%ex%
-            If val
-                out:=StrReplace(out, expr, val)                
         }
+        hs_numb:=A_Index
+            Break
     }
-    out:=StrReplace(out, "``t", "{Tab}")
-    out:=StrReplace(out, "``n", "{Enter}")
-    SendInput % out
+    out:=hs[hs_numb, 4], n:=0
+    If RegExMatch(out, "Clips\\\d{10,}", clipfile) {
+        If !FileExist(cfg_folder "\" clipfile) {
+            ToolTip Отсутствует файл!, % x ? x-40 : A_ScreenWidth//2, % y ? y-40 : A_ScreenHeight//2
+            SetTimer ToolTip, -1500
+            Return
+        }
+        FileRead, Clipboard, % "*c " cfg_folder "\" clipfile
+        ClipWait 3, 1
+        If !(out~="-Clips\\\d{10,}")
+            SendInput ^{vk56}
+        Else {
+            ToolTip % " `n   Буфер загружен!   `n ", % A_ScreenWidth//2-60, % A_ScreenHeight//2-20
+            SetTimer ToolTip, -1500
+            Critical Off
+            BlockInput Off
+            Return
+        }
+        Goto Final
+    }
+    Loop {
+        n:=RegExMatch(out, "%A_\w+%", expr, n+1)
+        If !expr
+            Break
+        ex:=StrReplace(expr, "%"), val:=%ex%
+        If val
+            out:=StrReplace(out, expr, val)                
+    }
+    StringCaseSense Off
+    Loop {
+        k:=RegExMatch(out, "[!\^\+]*\{(vk|U\+|Left |BS )\w{1,4}}", hk)
+        If k {
+            If (k>1)
+                SendInput % "{Raw}" SubStr(out, 1, k-1)
+            SendInput % hk
+            out:=SubStr(out, k+StrLen(hk))
+        }
+        If !out || !k
+            Break
+    }
+    SendInput % "{Raw}" out . A_EndChar
+Final:
     Critical Off
+    BlockInput Off
+    If scrolllock_show && GetKeyState("ScrollLock", "T") {
+        Sleep 100
+        ToolTip % "Замена: " hs_numb "  " hstr, % x ? x-40 : A_ScreenWidth//2, % y ? y-40 : A_ScreenHeight//2
+        SetTimer ToolTip, -2500
+    }
 }
+
+BlockInputOff:
+    BlockInput Off
+    Return
 
 Autoreplace:
     Gui 12:Destroy
@@ -3079,11 +3134,15 @@ Autoreplace:
     Gui 12:Margin, 10, 8
     Gui 12:Font, s9, Microsoft Sans Serif
     Gui 12:Add, Button, h36 w120 gEdit, + Добавить
-    Gui 12:Add, Text, x+20 yp+7, Завершения:
+    Gui 12:Add, CheckBox, x+8 yp+7 vcase_sens, С учетом регистра
+    Gui 12:Add, CheckBox, x+8 yp vscrolllock_show, Тултип автозамены с нажатым ScrollLock
+    Gui 12:Add, Text, x20, Завершения:
     Gui 12:Add, CheckBox, x+8 yp vend_space, Пробел
-    Gui 12:Add, CheckBox, x+4 yp vend_tab, Табуляция
-    Gui 12:Add, CheckBox, x+4 yp vend_enter, Ввод
-    Gui 12:Add, CheckBox, x+50 yp vcase_sens, С учетом регистра
+    Gui 12:Add, CheckBox, x+8 yp vend_tab, Табуляция
+    Gui 12:Add, CheckBox, x+8 yp vend_enter, Ввод
+    Gui 12:Add, CheckBox, x+8 yp vend_chars_enabled, Символы:
+    Gui 12:Add, Edit, x+4 yp-6 w180 vend_chars, % end_chars
+    
     Gui 12:Add, ListView, x8 w860 r16 -Multi NoSortHdr Checked +Grid -LV0x10  vapp gHS +HwndLV2, % " №|Сокращение|Опции|Автозамена"
     Loop % hs.Length() {
         h4:=hs[A_Index, 4],
@@ -3107,7 +3166,9 @@ Autoreplace:
     GuiControl,, end_space, % end_space
     GuiControl,, end_tab, % end_tab
     GuiControl,, end_enter, % end_enter
+    GuiControl,, end_chars_enabled, % end_chars_enabled
     GuiControl,, case_sens, % case_sens
+    GuiControl,, scrolllock_show, % scrolllock_show
     Gui 12:Show,, Автозамена
     Return
 
@@ -3128,7 +3189,14 @@ SaveRules:
     IniWrite % end_space, % hs_cfg, Main, end_space
     IniWrite % end_tab, % hs_cfg, Main, end_tab 
     IniWrite % end_enter, % hs_cfg, Main, end_enter
-    IniWrite % case_sens, % hs_cfg, Main, case_sens 
+    IniWrite % end_chars_enabled, % hs_cfg, Main, end_chars_enabled
+    end_chars:=StrReplace(end_chars, ",", "`,")
+    end_chars:=StrReplace(end_chars, "`", "``")
+    end_chars:=StrReplace(end_chars, "%","`%")
+    end_chars:=StrReplace(end_chars, """", """")    
+    IniWrite % end_chars, % hs_cfg, Main, end_chars
+    IniWrite % case_sens, % hs_cfg, Main, case_sens
+    IniWrite % scrolllock_show, % hs_cfg, Main, scrolllock_show 
     Loop % LV_GetCount() {
         h1:=(LV_GetNext(A_Index-1, "C")=A_Index) ? 1 : 0
         LV_GetText(h2, A_Index, 2)
@@ -3169,7 +3237,6 @@ HS:
     add_rule:=0
     
 Edit:
-    Suspend On
     If (A_ThisLabel="Edit")
         hse:=replacement:="", add_rule:=1
     Gui 13:Destroy
@@ -3184,10 +3251,17 @@ Edit:
     Gui 13:Add, CheckBox, xs vin_word, Внутри слов, без предшествующего пробела
     Gui 13:Font, s9
     Gui 13:Add, Edit, x10 w600 r6 vreplacement WantTab, % replacement
-    Gui 13:Add, Button, x30 w160 gVariables h32, Переменные
-    Gui 13:Add, Button, x+10 yp wp hp gPreview, Предпросмотр
-    Gui 13:Add, Button, x+60 yp hp w80 g13GuiClose, Cancel
-    Gui 13:Add, Button, x+10 yp hp w80 gHS_Save, OK
+    Gui 13:Font, s8
+    Gui 13:Add, Button, x20 y+4 w146 h54 gCharmap , Таблица`nсимволов
+    Gui 13:Add, Button, x+4 yp wp hp gHotkeyGui, Сочетание`nклавиш
+    
+    Gui 13:Add, Button, x+4 yp wp hp gClipSave, Вставить`nиз буфера
+    Gui 13:Add, Button, x+4 yp wp hp gClipLoad, Копировать`nв буфер
+    
+    Gui 13:Add, Button, x20 y+4 wp h36 gVariables, Переменные
+    Gui 13:Add, Button, x+4 yp wp hp gPreview, Предпросмотр
+    Gui 13:Add, Button, x+50 yp w100 hp g13GuiClose, Cancel
+    Gui 13:Add, Button, x+4 yp wp hp gHS_Save, OK
     If (A_ThisLabel="HS") {
         GuiControl,, all_lang, % all_lang
         GuiControl,, exact, % exact
@@ -3197,11 +3271,70 @@ Edit:
     Send {End}
     Return
     
-Variables:
-    Run doc\Variables.html
-    If ErrorLevel
-        Run % A_WinDir "\System32\OpenWith.exe " """" A_ScriptDir "doc\Variables.html"""
+Charmap:
+    Try {
+        Run %ComSpec% /c charmap,, Hide
+        WinWait ahk_exe charmap.exe
+        WinSet AlwaysOnTop
+    }
+    Catch {
+        ToolTip Отсутствует в`nоперационной системе
+        SetTimer ToolTip, -1500
+    }
     Return
+    
+HotkeyGui:
+    SetInputLang(0, 0x0409)
+    Gui 15:Destroy
+    Gui 15:Margin, 10, 6
+    Gui 15:Font, s9, Microsoft Sans Serif
+    Gui 15:+Owner13 -DPIScale +AlwaysOnTop +LastFound +ToolWindow +HwndGui15
+    Gui 15:Add, Text,, Введите сочетание клавиш:
+    Gui 15:Add, Hotkey, w180 vhkey gUpdate
+    Gui 15:Add, Text, x+8 yp+4, Код:
+    Gui 15:Add, Edit, vedit x+8 yp-4 w80
+    Gui 15:Add, Button, y+12 x60 w100 h32 g15GuiClose, Cancel
+    Gui 15:Add, Button, wp hp x+20 yp gCopy, Copy
+    Gui 15:Show,, Сочетание клавиш
+    Return
+    
+Update:   
+    key:=Format("vk{:x}", GetKeyVK(SubStr(hkey, 0))), text_convert:=1
+    hkey:=SubStr(hkey, 1, -1) "{" key "}"
+    GuiControl,, edit, % hkey
+    SetInputLang(0, 0x0409)
+    Return
+    
+Copy:
+    Gui 15:Destroy
+    Clipboard:=hkey
+    Return
+
+15GuiClose:
+    Gui 15:Destroy
+    Return
+
+#If WinActive("ahk_id" Gui15)
+Esc::Goto 15GuiClose
+#If
+        
+Variables:
+    Gui 16:Destroy
+    wh:=A_ScreenWidth*2//3, ht:=A_ScreenHeight*4//5
+    Gui 16:+Owner13 -DPIScale +AlwaysOnTop +LastFound +HwndGui16
+    Gui 16:Add, ActiveX, w%wh% h%ht% vWB, Shell.Explorer
+    WB.Silent:=True
+    WB.Navigate(A_ScriptDir "\doc\Variables.html")
+    Gui 16:Show,, Переменные
+    Return
+    
+16GuiClose:
+    Gui 16:Destroy
+    Return
+
+#If WinActive("ahk_id" Gui16)
+Esc::Goto 16GuiClose
+#If
     
 Preview:
     Gui 13:Submit, Nohide
@@ -3225,7 +3358,6 @@ Preview:
     
 13GuiClose:
     Gui 13:Destroy
-    Suspend Off
     Return
     
 HS_Save:
@@ -3259,6 +3391,46 @@ HS_Save:
         LV_Add("Check", LV_GetCount()+1, hse, opt, replacement)
     Else
         LV_Modify(row,,, hse, opt, replacement)
-    Suspend Off
+    Return
+    
+ClipSave:
+    FileCreateDir % cfg_folder "\Clips"
+    clipfile:="Clips\" A_Now
+    FileAppend % ClipboardAll, % cfg_folder "\" clipfile
+    Sleep 100
+    FileGetSize fsize, % cfg_folder "\" clipfile
+    If !fsize {
+        ToolTip Буфер обмена пуст!
+        FileDelete % cfg_folder "\" clipfile
+        SetTimer ToolTip, -1500
+        Return
+    }
+    fsize:=(fsize>1000000) ? Format("{:0.3}", fsize/1000000) " MB" : Format("{:0.3}", fsize/1000) " KB"
+    GuiControl,, replacement, % clipfile "  (" fsize ")"
+    Return
+    
+ClipLoad:
+    Critical
+    st_load:=A_TickCount
+    GuiControlGet clip ,, replacement
+    If !RegExMatch(clip, "Clips\\\d{10,}", clipfile) {
+        ToolTip Нет ссылок на файл!
+        SetTimer ToolTip, -1500
+        Return
+    }   
+    If !FileExist(cfg_folder "\" clipfile) {
+        ToolTip Отсутствует файл!
+        SetTimer ToolTip, -1500
+        Return
+    }
+    Clipboard:=""
+    FileRead, Clipboard, % "*c " cfg_folder "\" clipfile
+    ClipWait 3, 1
+    If !ErrorLevel {
+        tload:=A_TickCount-st_load
+        ToolTip % "Буфер загружен за " tload " мс"
+    }
+    SetTimer ToolTip, -1500
+    Critical Off
     Return
 
