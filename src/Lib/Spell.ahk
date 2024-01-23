@@ -650,7 +650,7 @@ Spell_Spell(ByRef hSpell,p_Word)
 ; * <Spell_Unicode2ANSI>
 ;
 ;-------------------------------------------------------------------------------
-Spell_Suggest(ByRef hSpell,p_Word,ByRef r_SuggestList)
+Spell_Suggest(ByRef hSpell,p_Word,ByRef r_SuggestList,del="`n")
     {
     Static Dummy3522
           ,FirstCall:=True
@@ -711,7 +711,7 @@ Spell_Suggest(ByRef hSpell,p_Word,ByRef r_SuggestList)
             Spell_Unicode2ANSI(pSuggestWord,l_SuggestWord)
 
         ;-- Add it to the list
-        r_SuggestList.=(StrLen(r_SuggestList) ? "`n":"") . l_SuggestWord
+        r_SuggestList.=(StrLen(r_SuggestList) ? del : "") . l_SuggestWord ; mod!
         }
 
     Return l_Count

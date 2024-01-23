@@ -1,4 +1,6 @@
-﻿;------------------------------------------------------------------------------
+﻿; http://www.autohotkey.com/board/topic/77303-acc-library-ahk-l-updated-09272012/
+; https://dl.dropbox.com/u/47573473/Web%20Server/AHK_L/Acc.ahk
+;------------------------------------------------------------------------------
 ; Acc.ahk Standard Library
 ; by Sean
 ; Updated by jethrow:
@@ -7,8 +9,7 @@
 ; 	Added Acc_GetRoleText & Acc_GetStateText
 ; 	Added additional functions - commented below
 ; 	Removed original Acc_Children function
-;	Added Acc_Error, Acc_ChildrenByRole, & Acc_Get functions
-; last updated 10/25/2012
+; last updated 2/25/2010
 ;------------------------------------------------------------------------------
 
 Acc_Init()
@@ -31,7 +32,7 @@ Acc_ObjectFromPoint(ByRef _idChild_ = "", x = "", y = "")
 	Return	ComObjEnwrap(9,pacc,1), _idChild_:=NumGet(varChild,8,"UInt")
 }
 
-Acc_ObjectFromWindow(hWnd, idObject = 0)
+Acc_ObjectFromWindow(hWnd, idObject = -4)
 {
 	Acc_Init()
 	If	DllCall("oleacc\AccessibleObjectFromWindow", "Ptr", hWnd, "UInt", idObject&=0xFFFFFFFF, "Ptr", -VarSetCapacity(IID,16)+NumPut(idObject==0xFFFFFFF0?0x46000000000000C0:0x719B3800AA000C81,NumPut(idObject==0xFFFFFFF0?0x0000000000020400:0x11CF3C3D618736E0,IID,"Int64"),"Int64"), "Ptr*", pacc)=0
@@ -95,7 +96,7 @@ Acc_Location(Acc, ChildId=0, byref Position="") { ; adapted from Sean's code
 	Position := "x" NumGet(x,0,"int") " y" NumGet(y,0,"int") " w" NumGet(w,0,"int") " h" NumGet(h,0,"int")
 	return	{x:NumGet(x,0,"int"), y:NumGet(y,0,"int"), w:NumGet(w,0,"int"), h:NumGet(h,0,"int")}
 }
-Acc_Parent(Acc) {
+Acc_Parent(Acc) { 
 	try parent:=Acc.accParent
 	return parent?Acc_Query(parent):
 }

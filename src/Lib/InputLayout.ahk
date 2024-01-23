@@ -23,5 +23,5 @@
 		langID:=DllCall("GetKeyboardLayout", UInt, ThreadID, UInt)
 		SetFormat Integer, D
 	}
-    Return "0x" SubStr(langID, -3)
+    Return "0x" Format("{:L}", SubStr(langID, -3))
 }

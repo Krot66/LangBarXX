@@ -1,4 +1,6 @@
-﻿StrUnmark(string) {
+﻿; Lexicos https://www.autohotkey.com/boards/viewtopic.php?f=6&t=8089#p47548
+
+StrUnmark(string) {
     len := DllCall("Normaliz.dll\NormalizeString", "int", 2
         , "wstr", string, "int", StrLen(string)
         , "ptr", 0, "int", 0)  ; Get *estimated* required buffer size.
