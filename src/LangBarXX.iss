@@ -50,8 +50,8 @@ Name: "flags"; Description: "Country png-flags"; Types: full standard
 Name: "editor"; Description: "AkelPad portable editor"; Types: full standard
 Name: "hunspell"; Description: "Hunspell-based autocorrect"; Types: full standard
 Name: "hunspell\en"; Description: "English dictionary"; Types: full standard
-; Name: "hunspell\fr"; Description: "French dictionary"; Types: full
-; Name: "hunspell\de"; Description: "Deutch dictionary"; Types: full
+Name: "hunspell\fr"; Description: "French dictionary"; Types: full
+Name: "hunspell\de"; Description: "Deutch dictionary"; Types: full
 Name: "hunspell\ru"; Description: "Russian dictionary"; Types: full standard
 Name: "hunspell\be"; Description: "Belarussian dictionary"; Types: full
 Name: "hunspell\uk"; Description: "Ukrainian dictionary"; Types: full
@@ -73,10 +73,11 @@ Source: "{app}\flags\*"; DestDir: "{app}\flags_old"; Components: flags; Flags: e
 Source: "flags\*"; DestDir: "{app}\flags"; Components: flags; Flags: ignoreversion
 
 Source: "hunspell\*"; DestDir: "{app}\hunspell"; Components: hunspell; Flags: ignoreversion
+Source: "sounds\*"; DestDir: "{app}\sounds"; Components: hunspell; Flags: ignoreversion
 
 Source: "dict\en-US\*"; DestDir: "{app}\dict\en-US"; Components: hunspell\en; Flags: ignoreversion recursesubdirs
-; Source: "dict\fr-FR\*"; DestDir: "{app}\dict\fr-FR"; Components: hunspell\fr; Flags: ignoreversion recursesubdirs
-; Source: "dict\de-DE\*"; DestDir: "{app}\dict\en-US"; Components: hunspell\de; Flags: ignoreversion recursesubdirs
+Source: "dict\fr-FR\*"; DestDir: "{app}\dict\fr-FR"; Components: hunspell\fr; Flags: ignoreversion recursesubdirs
+Source: "dict\de-DE\*"; DestDir: "{app}\dict\de-DE"; Components: hunspell\de; Flags: ignoreversion recursesubdirs
 Source: "dict\ru-RU\*"; DestDir: "{app}\dict\ru-RU"; Components: hunspell\ru; Flags: ignoreversion recursesubdirs
 Source: "dict\be-BY\*"; DestDir: "{app}\dict\be-BY"; Components: hunspell\be; Flags: ignoreversion recursesubdirs
 Source: "dict\uk-UA\*"; DestDir: "{app}\dict\uk-UA"; Components: hunspell\uk; Flags: ignoreversion recursesubdirs
@@ -86,6 +87,7 @@ Source: "{src}\flags\*"; DestDir: "{app}\flags"; Flags: external skipifsourcedoe
 Source: "{src}\masks\*"; DestDir: "{app}\masks"; Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{src}\config\*"; DestDir: "{userappdata}\LangBarXX"; Check: not IsTaskSelected('portablemode'); Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{src}\config\*"; DestDir: "{app}\config"; Check: IsTaskSelected('portablemode'); Flags: external skipifsourcedoesntexist ignoreversion
+Source: "{src}\Clips\*"; DestDir: "{app}\Clips"; Flags: external skipifsourcedoesntexist ignoreversion
 
 [Dirs]
 Name: "{app}\config"; Check: IsTaskSelected('portablemode')

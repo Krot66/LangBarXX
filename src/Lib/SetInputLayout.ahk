@@ -23,21 +23,18 @@
             Return
         }
         st:=A_TickCount, del:=A_KeyDelay, dur:=A_KeyDuration
-        SetKeyDelay 20, 10
+        SetKeyDelay 50, 50
         Critical On
         Loop {
             old:=InputLayout(), lcount:=0
             Send % keys
             While (InputLayout()=old) && (lcount<20) {
                 lcount++
-                Sleep 10
+                Sleep 20
             }          
             If (InputLayout()=target) || (A_Index>lang_array.Length())
                 Break
         }
-        Loop Parse, % "LCtrl,LShift,LAlt", CSV
-            If GetKeyState(A_LoopField)
-                Send {%A_LoopField% up}
         SetKeyDelay % del, % dur
         Critical Off
     }
