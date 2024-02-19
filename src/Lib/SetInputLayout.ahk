@@ -1,5 +1,6 @@
 ﻿SetInputLayout(key_switch, target="") {
     Global lang_array
+    target0:=target
     If !target {
         Loop % lang_array.Length() 
             If (InputLayout()=lang_array[A_Index, 1]) {
@@ -7,7 +8,7 @@
                 Break               
             }
     }
-    start:=InputLayout(), ks_start:=A_TickCount
+    start:=InputLayout(), start:=A_TickCount
     StringCaseSense Off
     If (target=start)
         Return
@@ -47,6 +48,6 @@
             PostMessage, 0x50,, % target,, A
     }
     Sleep 5
-    OutputDebug % A_TickCount-ks_start "!!" key_switch " " target " " ((target!=InputLayout()) ? "error" : "")
+    OutputDebug % A_TickCount-start " " key_switch " " target " " ((target!=InputLayout()) ? "error" : "")
     Return
 }
