@@ -1,4 +1,5 @@
 ﻿SetInputLayout(key_switch, target="") {
+    Critical On ; иначе мелькание флажка и замедление переключения!
     Global lang_array
     target0:=target
     If !target {
@@ -24,8 +25,7 @@
             Return
         }
         st:=A_TickCount, del:=A_KeyDelay, dur:=A_KeyDuration
-        SetKeyDelay 50, 50
-        Critical On
+        SetKeyDelay 10, 10
         Loop {
             old:=InputLayout(), lcount:=0
             Send % keys

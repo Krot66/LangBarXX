@@ -1,12 +1,8 @@
 ﻿SendText(txt) {
-    ;global sc_string ; Для слежения и записи лога
-    Global hand_sel
     If !txt
         Return
-    If hand_sel
-        Send {Del}
     If IsObject(txt) {
-        sc_string:="", hkl:=InputLayout()
+        hkl:=InputLayout()
         SetStoreCapsLockMode Off
         Loop % txt.Length() {
             SetCapsLockState % ((txt[A_Index, 3]) ? "On" : "Off")
@@ -18,7 +14,6 @@
             }
             Else
                 SendInput % txt[A_Index, 2] "{" vk "}"
-            sc_string.=txt[A_Index, 2] "{" vk "}"
             Sleep 3
         }
         SetStoreCapsLockMode On
