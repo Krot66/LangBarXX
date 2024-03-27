@@ -1,4 +1,5 @@
 ﻿SendText(txt) {
+    Global hand_sel
     If !txt
         Return
     If IsObject(txt) {

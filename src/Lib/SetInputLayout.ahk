@@ -1,5 +1,7 @@
 ﻿SetInputLayout(key_switch, target="") {
+    ; Не использовать Critical!
     Global lang_array
+    Global kl_change
     target0:=target, start:=InputLayout(), st:=A_TickCount
     If (target=start)
         Return
@@ -22,15 +24,17 @@
             MsgBox, 16, , У вас выключено переключение раскладки с помощью`nклавиатуры - включите его в панели управления!, 5
             Return
         }
+        RegRead, uac, HKEY_LOCAL_MACHINE, Software\Microsoft\Windows\CurrentVersion\Policies\System, EnableLUA
+        SendMode % !uac ? "Play" : "Input"
         del:=A_KeyDelay, dur:=A_KeyDuration
-        SetKeyDelay 10, 10
+        SetKeyDelay -1, -1
         Loop {
             old:=InputLayout(), lcount:=0
             Loop Parse, keys, `,
             {
-                SendEvent % A_LoopField
+                Send % A_LoopField
                 If (A_Index=1) && InStr(keys, ",")
-                    Sleep 10
+                    Sleep % uac ? 5 : 20
             }
             While (InputLayout()=old) && (lcount<20) {
                 lcount++
