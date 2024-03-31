@@ -17,7 +17,7 @@ SetTitleMatchMode 2
 SetTitleMatchMode Slow
 Process Priority,, A
 
-version:="1.7.0"
+version:="1.7.2"
 
 /*
 Использованы:
@@ -121,6 +121,7 @@ IniRead flag_sett, % cfg, Tray, Flag_Sett, 0
 IniRead capslock, % cfg, Keys, CapsLock, 1
 IniRead scrolllock, % cfg, Keys, ScrollLock, 1
 IniRead numlock_on, % cfg, Keys, NumLock_On, 0
+IniRead shift_capslock, % cfg, Keys, Shift_CapsLock, 0
 
 IniRead flag, % cfg, Flag, Flag, 1
 IniRead dx, % cfg, Flag, DX, 16
@@ -271,6 +272,8 @@ Menu CapsLock, Add, Без изменений, CapsLockState
 Menu CapsLock, Add, То же и инверсия регистра, CapsLockState
 Menu CapsLock, Add, Только инверсия регистра, CapsLockState
 Menu CapsLock, Add
+Menu CapsLock, Add, Shift+CapsLock - инверсия, ShiftCapslock
+Menu CapsLock, Add
 Menu CapsLock, Add, Выключен, CapsLockState
 Menu CapsLock, Add, Как Shift, CapsLockState
 Menu CapsLock, Add, Переключение раскладки, CapsLockState
@@ -368,10 +371,12 @@ Menu Flag, % file_aspect ? "Check" : "Uncheck", 6&
 Menu CapsLock, % capslock=1 ? "Check" : "Uncheck", 1&
 Menu CapsLock, % capslock=4 ? "Check" : "Uncheck", 2&
 Menu CapsLock, % capslock=5 ? "Check" : "Uncheck", 3&
-Menu CapsLock, % capslock=0 ? "Check" : "Uncheck", 5&
-Menu CapsLock, % capslock=-1 ? "Check" : "Uncheck", 6&
-Menu CapsLock, % capslock=2 ? "Check" : "Uncheck", 7&
-Menu CapsLock, % capslock=3 ? "Check" : "Uncheck", 8&
+Menu CapsLock, % capslock=0 ? "Check" : "Uncheck", 7&
+Menu CapsLock, % capslock=-1 ? "Check" : "Uncheck", 8&
+Menu CapsLock, % capslock=2 ? "Check" : "Uncheck", 9&
+Menu CapsLock, % capslock=3 ? "Check" : "Uncheck", 10&
+
+Menu CapsLock, % shift_capslock ? "Check" : "Uncheck", 5&
 
 Menu NumLock, % numlock_on ? "Check" : "Uncheck", 1&
 Menu NumLock, % numlock_icon ? "Check" : "Uncheck", 3&
@@ -520,7 +525,8 @@ If f_keys {
     }
 }
 
-hook_opt:="I V", ks:=[], out_orig:=[], bs_count:=deadkey_count:=0
+hook_opt:="I V", ks:=[]
+;, bs_count:=deadkey_count:=0
 InputHook:
     ks:=[], ih_alt:=text_alt:=text_old:=key_prev:=bs_ignore:=""
     ih:=InputHook(hook_opt, endkeys)
@@ -531,14 +537,17 @@ InputHook:
     ih.OnKeyDown:=Func("KeyArray")
     ih.Start()
     ih.Wait()
-    If (ih.EndKey~="(Tab|Enter|NumpadEnter)")
+    If (ih.EndKey~="(Tab|Enter)")
         key_name:=ih.EndKey
     If (ih.EndKey~="Enter")
-        text_convert:=new_lang:=mouse_click:=""
+        new_lang:=mouse_click:=""
     Goto InputHook
 
 KeyArray(hook, vk, sc) {
     Global
+    Critical On
+    If WinActive("ahk_class VMPlayerFrame") || WinActive("ahk_exe VirtualBox.exe") || WinActive("ahk_exe VirtualBoxVM.exe")
+        Return
     tstart:=A_TickCount, il:=InputLayout(),    
     win_now:=WinExist("A")
     ControlGetFocus ctrl_now
@@ -553,38 +562,35 @@ KeyArray(hook, vk, sc) {
     If (pefix="+") && GetKeyState("BS", "P")
         Return
     ks.Push([sc, prefix, GetKeyState("CapsLock", "T")]), ksl:=ks.Length()
+    Critical Off
     If !ih.VisibleText
         Return
-    
+        
     If ((print_win:=WinExist("A"))!=print_win_old)
         mouse_click:=new_lang:=key_name:=""
     If (il!=il_old) && (print_win=print_win_old) && print_win_old && il_old && new_lang_ignore
         new_lang:=1
     il_old:=il, print_win_old:=print_win, wheel:=0, key_prev:=key_name
-    If WinActive("ahk_class VMPlayerFrame") || WinActive("ahk_exe VirtualBox.exe") || WinActive("ahk_exe VirtualBoxVM.exe")
-        Return
+        
     If (key_name~="(Space|Tab|Enter)")
-        lang_start:=new_lang:=mouse_click:=wait_next:=trans:=text_convert:=manual_convert:=text_alt:=bs_ignore:=""
+        lang_start:=new_lang:=mouse_click:=trans:=text_convert:=manual_convert:=text_alt:=bs_ignore:="", bs_count:=deadkey_count:=0, out_orig:=[]
     key_name:=GetKeyName(Format("sc{:x}", sc)), ih_old:=ih.Input, last_symb:=SubStr(ih_old, 0), last_space:=(key_name~="(Space|Tab|Enter)") ? 1 : 0
     
     If (ih.Input~="^\S$") && (WinActive("ahk_class ConsoleWindowClass") || WinActive("ahk_exe WindowsTerminal.exe") || WinActive("ahk_class VirtualConsoleClass")) ; сброс для консольных программ
         manual_convert:=""
     If last_space
-        key_string:=text:=text_alt:="", out_orig:=[], key_time:=nkeys:=deadkey_count:=bs_count:=0
+        key_string:=text:=text_alt:=manual_convert:="", key_time:=nkeys:=0
     If (key_name="Backspace") && (prefix!="+") { ; обработка BS
-        ih_alt:=SubStr(ih_alt, 1, -1), ks.Pop(), ks.Pop(),
-        manual_convert:="", out_orig:=[], bs_count:=0
+        ih_alt:=SubStr(ih_alt, 1, -1), t0_alt:=SubStr(t0_alt, 1, -1), ks.Pop(), ks.Pop(),
+        manual_convert:="", bs_count:=0
         If backspace_ignore
             bs_ignore:=1
-        Return
+        Return ; Необходимо для автопереключения при полном затирании слова!
     }
     If autocorrect && (il~=lang_auto) && (((digit_borders && (Format("sc{:x}", sc)~="^(sc[2-9a-dA-D])$")) || (start_symbols_enabled && InStr(start_symbols, last_symb))) && ((key_prev~="(Space|Tab|Enter)") || !key_prev)) {
         ih.Stop()
         Return        
     }
-    
-    If (ks[ksl, 1]=ks[ksl-1, 1]) && (ks[ksl, 1]=ks[ksl-2, 1]) && (ks[ksl, 1]=ks[ksl-3, 1]) && GetKeyState(Format("vk{:x}", vk), "P") ; Блокировка исправления буквенных строк
-        Return
     
     If !((auto_state=1) || (autocorrect && !(auto_state=2)))
         Return
@@ -618,13 +624,19 @@ KeyArray(hook, vk, sc) {
             , "Uint", 0
             , "ptr", alt_lang)
     ;OutputDebug % vk " " sc " " alt_lang
-    symb:=StrGet(&pwszBuff, nch, "utf-16"), text_alt:=ih_alt.=deadkey ? "" : symb,
+    symb:=StrGet(&pwszBuff, nch, "utf-16"), text_alt:=ih_alt.=(deadkey || (key_name="Backspace")) ? "" : symb,
     deadkey_count+=deadkey ? 1 : 0
-    
-    
+    If deadkey
+        Return
+       
     RegExMatch(ih_old, "\S+(?=\s?$)", text), RegExMatch(text_alt, "\S+(?=\s?$)", t_alt),
     RegExMatch(ih_old, "\S+\s?$", tconv), str_length:=StrLen(tconv),
     t0:=RegExReplace(text, "\s$"), t0_alt:=RegExReplace(t_alt, "\s$")
+    
+    If (StrLen(text)>2) && (SubStr(text, 1, 1)=SubStr(text, 2, 1)) && (SubStr(text, 1, 1)=SubStr(text, 3, 1)) {
+        bs_ignore:=1
+        Return
+    }
 
     If text_convert
         || (new_lang && new_lang_ignore)  
@@ -642,10 +654,10 @@ KeyArray(hook, vk, sc) {
     If InStr(end_symbols, SubStr(t0_alt, 0)) && end_symbols_enabled
         t0_alt:=SubStr(t0_alt, 1, -1), end_symb:=1
 
-    If (SubStr(t0, 1, 1)=SubStr(t0, 2, 1)) ; начальные дубликаты знаков и срабатывание границ слов
+    If (SubStr(t0, 1, 1)=SubStr(t0, 2, 1)) && (SubStr(t0, 1, 1)=SubStr(t0, 3, 1)) ; начальные дубликаты знаков и срабатывание границ слов
         Return
         
-    If (StrLen(t0_alt)<2) ; Блокировка одиночных букв с диакритикой
+    If (StrLen(t0_alt)<2) && deadkey_count ; Блокировка одиночных букв с диакритикой
         Return
 
     t1:=t2:=tu:=list_curr:=list_alt:=""
@@ -694,25 +706,22 @@ KeyArray(hook, vk, sc) {
         }
         If tu
             t0:=Format("{:L}", t0), t1:=Format("{:L}", t1), t0_alt:=Format("{:L}", t0_alt), t2:=Format("{:L}", t2), list1:=Format("{:L}", list1), list2:=Format("{:L}", list2)
-        Tooltip % LangCode(il) "   " t0 "   " t1 "  " list1 "`n" LangCode(alt_lang) "   " t0_alt "   " t2  "  " list2 , % A_ScreenWidth//2-300, 0, 10
+        Tooltip % LangCode(il) "   " t0 "   " t1 "  " list1 "`n" LangCode(alt_lang) "   " t0_alt "   " t2  "  " list2 , % A_ScreenWidth//2-200, 0, 10
         ttip1:=""
     }
     key_time+=A_TickCount-tstart, nkeys+=1, minl:=Min(StrLen(t0), StrLen(t0_alt))   
     If autocorrect && (((last_space || end_symb) && str_length) || (minl>(min_length ? 2 : 1))) && t2 && !t1 && !text_convert && !bs_ignore {
-        If deadkey || (list_alt && !min_length && !(last_space || end_symb) && !wait_next) {
-            wait_next:=1
-            Return
-        }
         KeyWait % Format("vk{:x}", vk) , T0.5
         r1:=tu ? Format("{:L}", t0) : t0, r2:=tu ? Format("{:L}", t2) : t2,
         text_convert:=1, out_orig:=ks.Clone(), hook_opt:="I", ih.Stop(), ks:=[]
         SetTimer ResetHook, -3000
-        SetTimer AutocorrectRun, -5
+        SetTimer AutocorrectRun, -3
     }
     Return    
 }
 
 AutocorrectRun:
+    Thread NoTimers
     last_space:="", lang_start:=il, ts:=A_TickCount, olds:=tconv
     bs_count:=(str_length>out_orig.Length()) ? out_orig.Length() : str_length, 
     out_orig.RemoveAt(1, out_orig.Length()-bs_count)
@@ -724,14 +733,14 @@ AutocorrectRun:
     }
     Sleep 5
     SetInputLayout(key_switch, alt_lang)
-    Sleep % key_switch ? 5 : 20
+    Sleep 5
     SendText(out_orig)
     OutputDebug % ih.InProgress " " ih.VisibleText " " ih.VisibleNonText
     SendText(ks)
-    il_old:=InputLayout(), wait_next:=ih_alt:=text_alt:="",
+    il_old:=InputLayout(), ih_alt:=text_alt:="",
     bs_count+=ks.Length(), out_orig.Push(ks*), hook_opt:="I V", ih.Stop(), ks:=[], wtime:=key_time//nkeys "/" A_TickCount-ts   
     If sound && FileExist("sounds\autocorrect.wav")
-        SetTimer AutocorrectSound, -50
+        SetTimer AutocorrectSound, -10
     Return
 
 ResetHook:
@@ -789,6 +798,10 @@ Pause::
         Return
     If (InputLayout()~=shift_bs_langs)
         Goto Translate
+    If InStr(A_ThisHotkey, "<+")
+        Send {LShift up}
+    If InStr(A_ThisHotkey, ">+")
+        Send {RShift up}
     Return
     
 #If ctrl_capslock_langs
@@ -803,10 +816,28 @@ Pause::
     If (InputLayout()~=ctrl_capslock_langs) {
         cls:=cls_old
         Gosub Translate
-        SetCapsLockState % cls ? "On" : "Off"
         Sleep 50        
+        SetCapsLockState % cls ? "On" : "Off"
     }
     Return
+    
+#If shift_capslock
+<+CapsLock::
+    If ((text_convert && !last_space) || (manual_convert && (A_ThisHotkey=hkey))) && out_orig {
+        KeyWait CapsLock, T1
+        KeyWait LShift, T1
+        Goto Rollback
+    }
+    If manual_convert && !(A_ThisHotkey=hkey)
+        Return        
+    cls:=cls_old
+    Gosub Select
+    SendText(out:=InvertCase(sel))
+    Sleep 50
+    SetCapsLockState % cls ? "On" : "Off"    
+    out_orig:=sel, manual_convert:=1
+    Return
+
 
 #If (text_convert || manual_convert) && !last_space && out_orig && ctrlz_undo 
 ^sc2C up:: ; Ctrl+Z    
@@ -933,6 +964,8 @@ Select:
         Exit
     }
     Gosub ResetButtons
+    If InStr(hkey, ">^")
+        Send {RCtrl up}
     Sleep 100
     out_orig:=out.Clone(), manual_convert:=1, ih.Stop(), lang_start:=InputLayout()
     Return
@@ -1148,7 +1181,8 @@ SetInputLang:
     _ctrl_capslock_langs:=StrSplit(SubStr(ctrl_capslock_langs, 2, -1), "|")
     StringCaseSense Off
     If (A_ThisHotkey~="^(LShift|RShift|LCtrl|RCtrl)") {
-        target:=%A_ThisHotkey%, new_lang:=show_lang:=1
+        RegExMatch(A_ThisHotkey, "^\w+", lkey)
+        target:=%lkey%, new_lang:=show_lang:=1
         If !target
             Return
         If (target=1)
@@ -1193,10 +1227,6 @@ SetInputLang:
 ;================================================
 #If lshift
 LShift::
-    If key_switch {
-        KeyWait LShift, T1
-        Sleep 100
-    }
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
     Gosub SetInputLang
@@ -1206,10 +1236,6 @@ LShift::
 
 #If rshift
 RShift::
-    If key_switch {
-        KeyWait RShift, T1
-        Sleep 100
-    }
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
     Gosub SetInputLang
@@ -1219,11 +1245,6 @@ RShift::
 
 #If lctrl
 LCtrl::
-    If key_switch {
-        KeyWait LCtrl, T1
-        Sleep 100
-    }
-    Sleep 50
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
     Gosub SetInputLang
@@ -1232,10 +1253,6 @@ LCtrl::
 
 #If rctrl
 RCtrl::
-    If key_switch {
-        KeyWait RCtrl, T1
-        Sleep 100
-    }
     If double_click && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400))
         Return
     Gosub SetInputLang
@@ -1259,10 +1276,6 @@ CapsLock::
 
 #If (capslock=4)
 CapsLock::
-    If manual_convert && (A_ThisHotkey=hkey) && out_orig {
-        KeyWait CapsLock, T1
-        Goto Rollback
-    }
     KeyWait CapsLock, T0.25
     If !ErrorLevel {
         SetCapsLockState % GetKeyState("CapsLock", "T") ? "Off" : "On"
@@ -1303,7 +1316,7 @@ CapsLock::
     ih.Stop(), stop:="Mouse"
     If (cl~="^(ApplicationFrameWindow|Chrome_WidgetWin_\d|MozillaWindowClass|Slimjet_WidgetWin_1)") {
         wheel:=1, x_wheel:=_x, y_wheel:=_y
-        Gui FlagHwnd:Destroy
+        Gui Hide
     }
     Return
 
@@ -1377,6 +1390,10 @@ CapsLockState:
     If (A_ThisMenuItem="Только инверсия регистра")
         capslock:=5
     Goto Apply
+    
+ShiftCapsLock:
+    shift_capslock:=!shift_capslock
+    goto Apply
 
 NumLock:
     numlock_on:=!numlock_on
@@ -1601,6 +1618,7 @@ Settings:
     IniWrite % capslock, % cfg, Keys, CapsLock
     IniWrite % scrolllock, % cfg, Keys, ScrollLock
     IniWrite % numlock_on, % cfg, Keys, NumLock_On
+    IniWrite % shift_capslock, % cfg, Keys, Shift_CapsLock
 
     IniWrite % wordint, % cfg, Select, WordInt
     IniWrite % wait, % cfg, Select, Wait
@@ -1679,7 +1697,7 @@ IndicatorToggle:
     indicator:=!indicator
     Menu Indicator, % indicator ? "Check" : "Uncheck", 1&
     If !indicator
-        Gui IndHwnd:Destroy
+        Gui 11:Hide
     Else
         Goto Indicator
     Return
@@ -1770,7 +1788,7 @@ Pos:
     }
     ToolTip % mess, % x+width+15,% y-20, 2
     SetTimer ToolTip, -1500
-    WinSet, TransColor, % "3F3F3F " transp*255//100, ahk_id %FlagHwnd%
+    WinSet, TransColor, % "3A3B3C " transp*255//100, ahk_id %FlagHwnd%
     If !WinActive("ahk_id" Gui2 )
         MouseMove % x+width//2, % y+width*3//8
     Return
@@ -1826,7 +1844,7 @@ LangNote:
     If !note || IsFullScreen()
         Return
     SetTimer LangNoteDestroy, Off
-    SetTimer LangNoteDestroy, % text_convert ? -800 : note_duration, 10
+    SetTimer LangNoteDestroy, % text_convert ? -800 : note_duration
     Loop % lang_array.Length()
     If (InputLayout()=lang_array[A_Index, 1]) {
         pNote:=lang_array[A_Index, 8]
@@ -1845,11 +1863,11 @@ LangNote:
         Return
     }
     Gui 20:Destroy
-    Gui 20:-DPIScale
-    Gui 20:+AlwaysOnTop -Caption +ToolWindow +LastFound +HwndLnote +E0x20
+    Gui 20:-DPIScale +AlwaysOnTop +ToolWindow -Caption +LastFound +HwndLnote +E0x20
     Gui 20:Add, Picture, x0 y0 w%nw% h%nh% +HwndLncode, hbitmap:*%NoteHandle%
-    Gui 20:Color, 1A2B3C
-    WinSet, TransColor, % "1A2B3C " note_transp*255//100
+    Gui 20:Color, 2A2B2C
+    WinSet TransColor, % "2A2B2C " note_transp*255//100
+    WinSet Style, -0xC40000
     Gui 20:Show, NA w%nw% h%nh%
     Gdip_DisposeImage(pLnote)
     Gdip_DeleteGraphics(N)
@@ -1861,25 +1879,25 @@ LangNoteDestroy:
     
 FlagGui:
     Gui Destroy
-    Gui -DPIScale
-    Gui +AlwaysOnTop -Caption +ToolWindow +LastFound +Owner +HwndFlagHwnd
+    Gui -DPIScale +AlwaysOnTop +ToolWindow -Caption +LastFound +HwndFlagHwnd
     Gui Add, Picture, x0 y0 w96 h128 +HwndCapsID
     Gui Add, Picture, x0 y0 w96 h128 +HwndFlagID
     Gui Add, Picture, x0 y0 w96 h128 +HwndAutocorrectID AltSubmit BackGroundTrans gReturn
-    Gui Color, 3F3F3F
-    WinSet, TransColor, % "3F3F3F " transp*255//100
+    WinSet Style, -0xC40000
+    Gui Color, 3A3B3C
+    WinSet TransColor, % "3A3B3C " transp*255//100
     Return
 
 IndicatorGui:
     Gui 11:Destroy
-    Gui 11:-DPIScale
     click_transparent:=lang_switcher ? "" : "+E0x20"
-    Gui 11:+AlwaysOnTop -Caption +ToolWindow +LastFound +Owner +HwndIndHwnd %click_transparent%
+    Gui 11:-DPIScale +AlwaysOnTop +ToolWindow -Caption +LastFound +HwndIndHwnd %click_transparent%
     Gui 11:Add, Picture, x0 y0 w256 h256 +HwndIndCapsID
     Gui 11:Add, Picture, x0 y0 w256 h256 +HwndIndID
     Gui 11:Add, Picture, x0 y0 w256 h256 +HwndIndAutocorrectID AltSubmit BackGroundTrans
-    Gui 11:Color, 4F4E4D
-    WinSet, TransColor, % "4F4E4D " transp_in*255//100
+    WinSet Style, -0xC40000
+    Gui 11:Color, 3D3E3F
+    WinSet TransColor, % "3D3E3F " transp_in*255//100
     Return
 
 Masks:
@@ -1908,7 +1926,7 @@ TrayIcon:
         pToken:=Gdip_Startup()
     If ttip1 {
         ToolTip % hkey "/" button "`n" A_TimeSinceThisHotkey-A_TimeSincePriorHotkey " мс`n" A_ThisHotkey "`n" A_PriorHotkey, 200, 0, 11
-        ToolTip % "strl/ksl/dkc: " str_length "/" ks.Length() "/" deadkey_count "`nt_con: " text_convert "m_con: " manual_convert "`no_orig: " (IsObject(out_orig) ? out_orig.Length() : StrLen(out_orig)) "`nsel_length: " sel_length "`nbs_count/ksl: " bs_count "/" ks.Length() "`nnew_lang:" new_lang "`nmouse_click:" mouse_click "`nlast_space: " last_space "`nwait_next: " wait_next "`n" target_lang, 400, 0, 12
+        ToolTip % "strl/ksl/dkc: " str_length "/" ks.Length() "/" deadkey_count "`nt_con: " text_convert "  m_con: " manual_convert "`no_orig: " (IsObject(out_orig) ? out_orig.Length() : StrLen(out_orig)) "`nsel_length: " sel_length "`nbs_count/ksl: " bs_count "/" ks.Length() "`nnew_lang:" new_lang "`nmouse_click:" mouse_click "`nlast_space: " last_space "`n" target_lang, 400, 0, 12
         If !ttip
             Tooltip % il " " t0 "  " t1 " (ls: " last_space " es: " end_symb " kp: " key_prev ")`n" alt_lang " " t0_alt "  " t2, 600, 0, 13
         Else
@@ -1981,7 +1999,7 @@ Indicator:
     }
     win_last:=win_curr
     If (cl~="(Shell_TrayWnd|WorkerW|Progman)") || (IsFullScreen() && !on_full_screen) || !WinExist("A") {
-        Gui IndHwnd:Hide
+        Gui 11:Hide
         Return
     }
 
@@ -2012,7 +2030,7 @@ Indicator:
                 pScrollLock_in:=numlock_icon_in ? pScrollLock : pNumScroll
                 Gdip_DrawImage(I, pScrollLock_in, 0, 0, w_in, w_in)
             }
-            WinSet, TransColor, % "4F4E4D " transp_in*255//100, ahk_id %IndHwnd%
+            WinSet, TransColor, % "3D3E3F " transp_in*255//100, ahk_id %IndHwnd%
             DeleteObject(IndicatorHandle)
             IndicatorHandle:=Gdip_CreateHBITMAPFromBitmap(pBitmap)
             Gdip_DisposeImage(pBitmap)
@@ -2043,7 +2061,7 @@ Indicator:
         }
     }
     Else
-        Gui IndHwnd:Destroy
+        Gui 11:Hide
     Return
 
 IsFullScreen(win="A") {
@@ -2060,9 +2078,10 @@ Flag:
         ih.Stop(), stop:="NewWindow"
         SetTimer Flag, Off
         SetTimer TrayIcon, Off
-        Gui Destroy
-        Gui 11:Destroy
-        lang_old:=lang_in_old:=lang_fl_old:=text_convert:=manual_convert:=""
+        Gui Hide
+        Gui 11:Hide
+        lang_old:=lang_in_old:=lang_fl_old:=text_convert:=manual_convert:="",
+        bs_count:=deadkey_count:=0, out_orig:=[]
         Sleep 200
         SetTimer TrayIcon, On
         SetTimer Flag, On
@@ -2071,7 +2090,7 @@ Flag:
     If wheel && ((_x!=x_wheel) || (_y!=y_wheel))
         wheel:=0
     If !(il_fl:=InputLayout()) {
-        Gui FlagHwnd:Destroy
+        Gui Hide
         Return
     }
     Loop % lang_array.Length() {
@@ -2096,12 +2115,12 @@ Flag:
             Gdip_DisposeImage(pBanner)
             Gdip_DeleteGraphics(F)
             Sleep 5
-            Gui FlagHwnd:Default
+            Gui Default
             GuiControl,, %FlagID%, *w%width% *h%fl_h% hbitmap:*%FlagHandle%
             il_fl_old:=il_fl
         }
-        WinSet, TransColor, % "3F3F3F " transp*255//100, ahk_id %FlagHwnd%
-        Gui FlagHwnd:Default
+        WinSet, TransColor, % "3A3B3C " transp*255//100, ahk_id %FlagHwnd%
+        Gui Default
         GuiControlGet caps_vis, Visible, % CapsID
         GuiControlGet au_vis, Visible, % AutocorrectID
         If (autocorrect && !au_vis && !no_indicate) || (single_lang_fl_old!=single_lang) || (width!=width_old) {
@@ -2120,14 +2139,14 @@ Flag:
         }
         If !caps
             GuiControl Hide, % CapsID
-        Gui FlagHwnd:Show, x%x% y%y% NA
+        Gui Show, x%x% y%y% NA
         WinSet Top,, ahk_id %FlagHwnd%
         If !WinExist("ahk_id" FlagHwnd)
             Gosub FlagGui
         width_old:=width, fl_h_old:=fl_h, caps_old:=caps, autocorrect_fl_old:=autocorrect, single_lang_fl_old:=single_lang
     }
     Else
-        Gui FlagHwnd:Destroy
+        Gui Hide
     lastwin_old:=lastwin, cls_old:=GetKeyState("CapsLock", "P") ? cls_old : GetKeyState("CapsLock", "T")
     Return
 
