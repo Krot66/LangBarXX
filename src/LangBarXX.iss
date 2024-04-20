@@ -1,4 +1,4 @@
-#define MyAppName "LangBar++"
+#define MyAppName "LangBarXX"
 #define MyAppVersion GetFileVersion("LangBarXX.exe")
 ;#define MyAppPublisher "Horns'n'Hoofs Inc., Minsk, 2022"
 #define MyAppURL "https://github.com/Krot66/LangBarXX"
@@ -12,17 +12,18 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 ;AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
-DefaultDirName={pf}\LangBarXX
+UsePreviousAppDir=yes
+DefaultDirName={code:GetDefRoot}\LangBarXX
 DefaultGroupName={#MyAppName}
 LicenseFile=_Installer\LGPL-3.0.txt
 ;InfoBeforeFile=Before.txt
 Uninstallable=not IsTaskSelected('portablemode')
 OutputDir=D:\Soft\LangBarXX
 OutputBaseFilename=LangBarXX_setup
-DisableDirPage=no
+DisableDirPage=auto
 Compression=lzma
 SolidCompression=yes
-PrivilegesRequired=lowest
+PrivilegesRequired=none
 ArchitecturesInstallIn64BitMode=x64 ia64
 WizardImageFile=_Installer\WizModernImage-IS.bmp
 WizardSmallImageFile=_Installer\WizModernSmallImage-IS.bmp
@@ -46,7 +47,6 @@ Name: "custom"; Description: "Custom installation"; Flags: iscustom
 [Components]
 Name: "program"; Description: "Program Files"; Types: full standard minimal custom; Flags: fixed
 Name: "demon"; Description: "LB_WhatchDog - demon"; Types: full standard
-Name: "flags"; Description: "Country png-flags"; Types: full standard
 Name: "editor"; Description: "AkelPad portable editor"; Types: full standard
 Name: "hunspell"; Description: "Hunspell-based autocorrect"; Types: full standard
 Name: "hunspell\en"; Description: "English dictionary"; Types: full standard
@@ -69,11 +69,11 @@ Source: "bin\LB_WatchDog.exe"; DestDir: "{app}\bin"; Components: demon; Flags: i
 
 Source: "editor\*"; DestDir: "{app}\editor"; Components: editor; Flags: ignoreversion recursesubdirs
 
-Source: "{app}\flags\*"; DestDir: "{app}\flags_old"; Components: flags; Flags: external skipifsourcedoesntexist
-Source: "flags\*"; DestDir: "{app}\flags"; Components: flags; Flags: ignoreversion
+Source: "{app}\flags\*"; DestDir: "{app}\flags_old"; Components: program; Flags: external skipifsourcedoesntexist
+Source: "flags\*"; DestDir: "{app}\flags"; Components: program; Flags: ignoreversion
 
 Source: "hunspell\*"; DestDir: "{app}\hunspell"; Components: hunspell; Flags: ignoreversion
-Source: "sounds\*"; DestDir: "{app}\sounds"; Components: hunspell; Flags: ignoreversion
+Source: "sounds\*"; DestDir: "{app}\sounds"; Components: program; Flags: ignoreversion
 
 Source: "dict\en-US\*"; DestDir: "{app}\dict\en-US"; Components: hunspell\en; Flags: ignoreversion recursesubdirs
 Source: "dict\fr-FR\*"; DestDir: "{app}\dict\fr-FR"; Components: hunspell\fr; Flags: ignoreversion recursesubdirs
@@ -88,6 +88,7 @@ Source: "{src}\masks\*"; DestDir: "{app}\masks"; Flags: external skipifsourcedoe
 Source: "{src}\config\*"; DestDir: "{userappdata}\LangBarXX"; Check: not IsTaskSelected('portablemode'); Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{src}\config\*"; DestDir: "{app}\config"; Check: IsTaskSelected('portablemode'); Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{src}\Clips\*"; DestDir: "{app}\Clips"; Flags: external skipifsourcedoesntexist ignoreversion
+Source: "{src}\dict\*"; DestDir: "{app}\dict"; Flags: external skipifsourcedoesntexist ignoreversion
 
 [Dirs]
 Name: "{app}\config"; Check: IsTaskSelected('portablemode')
@@ -116,3 +117,13 @@ Filename: "taskkill"; Parameters: "/im ""LangBarXX64.exe"" /f"; Flags: runhidden
 [UninstallDelete]
 Type: files; Name: "{userappdata}\LangBarXX\*.*"
 Type: dirifempty; Name: "{userappdata}\LangBarXX"
+
+[Code]
+function GetDefRoot(Param: String): String;
+begin
+  if not IsAdminLoggedOn then
+    Result := ExpandConstant('{localappdata}')
+  else
+    Result := ExpandConstant('{pf}')
+end;
+
