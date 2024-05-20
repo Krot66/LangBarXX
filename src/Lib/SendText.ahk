@@ -1,9 +1,11 @@
-﻿SendText(txt) {
-    Global hand_sel
+﻿SendText(txt, hook:="") {
+    Global
     If !txt
         Return
+    hkl:=InputLayout(), send_text:=1
+    If hook
+        rh:=InputHook("V"), rh.Start() 
     If IsObject(txt) {
-        hkl:=InputLayout()
         SetStoreCapsLockMode Off
         Loop % txt.Length() {
             SetCapsLockState % ((txt[A_Index, 3]) ? "On" : "Off")
@@ -12,11 +14,14 @@
                 SendInput % "{Ctrl down}{Alt down}{" vk "}{Alt up}{Ctrl up}"
             Else
                 SendInput % txt[A_Index, 2] "{" vk "}"
-            Sleep 3
+            Sleep 5
         }
         SetStoreCapsLockMode On
-        Return
     }
-    SendInput % "{Text}" txt
-    Return
+    Else
+        SendInput % "{Text}" txt
+    OutputDebug % hkey "/" hkl " : " (IsObject(txt) ? 1 : 0) " " rh.Input
+    Sleep 5
+    rb:=rh.Input, rh.Stop(), send_text:=""
+    Return StrLen(rb)
 }

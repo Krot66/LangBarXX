@@ -64,6 +64,8 @@ Source: "bin\7zr.exe"; DestDir: "{app}\bin"; Components: program; Flags: ignorev
 Source: "doc\*"; DestDir: "{app}\doc"; Components: program; Flags: ignoreversion recursesubdirs
 Source: "{app}\masks\*"; DestDir: "{app}\masks_old"; Components: program; Flags: external skipifsourcedoesntexist
 Source: "masks\*"; DestDir: "{app}\masks"; Components: program; Flags: ignoreversion
+Source: "{app}\cursors\*"; DestDir: "{app}\cursors_old"; Components: program; Flags: external skipifsourcedoesntexist
+Source: "cursors\*"; DestDir: "{app}\cursors"; Components: program; Flags: ignoreversion
 
 Source: "bin\LB_WatchDog.exe"; DestDir: "{app}\bin"; Components: demon; Flags: ignoreversion
 
