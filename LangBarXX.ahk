@@ -21,7 +21,7 @@ Process Priority,, A
 #Include <Gdip_All>
 #Include %A_ScriptDir%\Lib\_icons.ahk
 
-version:="1.8.0"
+version:="1.8.2"
 
 /*
 Использованы:
@@ -36,8 +36,8 @@ GetCaret - plankoe
 
 
 ;@Ahk2Exe-SetProductName LangBar++
-;@Ahk2Exe-SetProductVersion 1.8.0
-;@Ahk2Exe-SetFileVersion 1.8.0
+;@Ahk2Exe-SetProductVersion 1.8.2
+;@Ahk2Exe-SetFileVersion 1.8.2
 ;@Ahk2Exe-SetDescription https://github.com/Krot66/LangBarXX
 
 ;@Ahk2Exe-SetMainIcon LangBarXX.ico
@@ -151,11 +151,11 @@ IniRead file_aspect, % cfg, Flag, File_Aspect, 0
 IniRead text_flags, % cfg, Flag, Text_Flags, 0
 
 IniRead indicator, % cfg, Indicator, Indicator, 0
-IniRead lang_switcher, % cfg, Indicator, Lang_Switcher, 1
+IniRead lang_switcher, % cfg, Indicator, Lang_Switcher, 0
 IniRead on_full_screen, % cfg, Indicator, On_Full_Screen, 0
 IniRead dx_in, % cfg, Indicator, DX_In, 50
-IniRead dy_in, % cfg, Indicator, DY_In, 97.4
-IniRead window_snap, % cfg, Indicator, Window_Snap, 0
+IniRead dy_in, % cfg, Indicator, DY_In, 1.0
+IniRead window_snap, % cfg, Indicator, Window_Snap, 1
 IniRead width_in, % cfg, Indicator, Width_In, 2
 IniRead transp_in, % cfg, Indicator, Transp_in, 90
 IniRead numlock_icon_in, % cfg, Indicator, NumLock_Icon_In, 1
@@ -320,7 +320,7 @@ Menu Tray, Add, Флажок курсора, :Cursor
 Menu Indicator, Add, Включен (Ctrl+Shift+Shift), IndicatorToggle
 Menu Indicator, Add
 Menu Indicator, Add, Привязка к активному окну, WindowSnap
-Menu Indicator, Add, Прозрачен для кликов, LangSwitcher
+Menu Indicator, Add, Переключатель раскладки, LangSwitcher
 Menu Indicator, Add, На полном экране, OnFullScreen
 Menu Indicator, Add
 Menu Indicator, Add, Настройка индикатора, IndicatorSettings
@@ -450,7 +450,7 @@ Menu CursorShow, % (cursor_show=10) ? "Check" : "Uncheck", 4&
 
 Menu Indicator, % indicator ? "Check" : "Uncheck", 1&
 Menu Indicator, % window_snap ? "Check" : "Uncheck", 3&
-Menu Indicator, % !lang_switcher ? "Check" : "Uncheck", 4&
+Menu Indicator, % lang_switcher ? "Check" : "Uncheck", 4&
 Menu Indicator, % on_full_screen ? "Check" : "Uncheck", 5&
 
 Menu Scaling, % scaling=0 ? "Check" : "Uncheck", 1&
@@ -512,7 +512,7 @@ Gosub IndicatorGui
 Gosub Masks
 lang_old:=lang_array[1,1]
 SetTimer TrayIcon, 100
-Sleep 200
+Sleep 100
 SetTimer Flag, 40
 If FileExist("hunspell") {
     Gosub LoadDict
@@ -582,7 +582,7 @@ KeyArray(hook, vk, sc) {
     Global
     If WinActive("ahk_class VMPlayerFrame") || WinActive("ahk_exe VirtualBox.exe") || WinActive("ahk_exe VirtualBoxVM.exe")
         Return
-    tstart:=A_TickCount, il:=InputLayout(), win_now:=WinExist("A")
+    tstart:=A_TickCount, il:=lang, win_now:=WinExist("A")
     ControlGetFocus ctrl_now
     If (win_now!=win_prior) || (ctrl_now!=ctrl_prior)
         ks:=[], out:=[], key_string:=manual_convert:=text_convert:=text:=text_alt:=bs_ignore:=reverse:="", bs_count:=deadkey_count:=send_length:=0, key_name:="Space"
@@ -665,7 +665,7 @@ KeyArray(hook, vk, sc) {
     RegExMatch(ih_old, "\S+\s?$", tconv), str_length:=StrLen(tconv),
     t0:=RegExReplace(text, "\s$"), t0_alt:=RegExReplace(t_alt, "\s$")
 
-    If (StrLen(text)>2) && (SubStr(text, 1, 1)=SubStr(text, 2, 1)) && (SubStr(text, 1, 1)=SubStr(text, 3, 1)) {
+    If (StrLen(text)>2) && (SubStr(text, 1, 1)=SubStr(text, 2, 1)) && (SubStr(text, 1, 1)=SubStr(text, 3, 1)) || (StrLen(text)>10) {
         bs_ignore:=1
         Return
     }
@@ -1314,7 +1314,10 @@ SetInputLang:
 ~LCtrl::
 #If rctrl
 ~RCtrl::
+    hkey_prev:=A_ThisHotkey
     KeyWait % SubStr(A_ThisHotkey, 2)
+    If (hkey_prev!=A_ThisHotkey)
+        Return
     key_time:=A_TimeSinceThisHotkey
     If ((key_press=2) && (key_time>short_press)) || ((key_press=3) && (key_time<long_press)) || ((key_press=4) && !((A_ThisHotkey=A_PriorHotkey) && (A_TimeSincePriorHotkey<400)))
             Return
@@ -1619,7 +1622,7 @@ About:
     Gui 4:Font, s11
     Gui 4:Add, Text, x60 y+6, % "LangBar++ " version " " (A_PtrSize=8 ? "x64" : "x86")
     If FileExist("config")
-        Gui 4:Add, Text, x100 y+4, portable
+        Gui 4:Add, Text, x100 y+4, % A_IsCompiled ? "portable" : "ahk-script"
     Gui 4:Font, s9
     Gui 4:Add, Button, x76 y+16 w120 h32 g4GuiClose, OK
     Gui 4:Show, w270, О программе
@@ -1782,10 +1785,11 @@ LangBar:
     SetTimer TrayIcon, Off
     SetTimer Flag, Off
     Gui Destroy
+    Gui 11:Destroy
     KeyWait LButton, T1
     Sleep 10
     WinActivate ahk_id %last_lang_win%
-    Sleep 10
+    Sleep 50
     SetInputLayout(key_switch)
     SetTimer LangNote, -50
     ih.Stop()
@@ -2054,7 +2058,7 @@ TrayIcon:
             ToolTip ,,,,13
         ;ToolTip % ih.EndReason " " ih.EndKey " " ((ih.EndReason="Stopped") ? stop : ""), 900, 0, 14
         ToolTip % ih.InProgress "/" ih.VisibleText "`n" bh.InProgress "/" bh.VisibleText , 1400, 0, 14
-        ToolTip % an "`n" cln "`nfl: " flag "/" flag_state "`nind: " indicator "/" ind_state "`nac: " autocorrect "/" auto_state "`nsd: " suspend_state, 1000, 0, 15 ; индикация правил
+        ToolTip % an "`n" cln "`nfl: " flag "/" flag_state "`nind: " indicator "/" ind_state "`nac: " autocorrect "/" auto_state "`nss: " suspend_state, 1000, 0, 15 ; индикация правил
     }
     WinGetClass cl, A
     If (lang:=InputLayout()) && !(cl~="Shell_TrayWnd")
@@ -2106,15 +2110,14 @@ TrayIcon:
 
 Cursors:     
     If cursor_hide || (flag_state=2) || !DllCall("User32\OpenInputDesktop", "int", 0*0, "int", 0*0,"int", 0x0001L*1) || IsFullScreen() {
-        If reset_cursor || IsFullScreen() {
+        If cursor_type
             RestoreCursors()
-            reset_cursor:=0
-        }
-        Sleep 20
-        Goto Indicator
+        cursor_type:=""
+        Sleep 10
+        Goto CheckRules
     }
-    If ((A_TickCount-cursor_time<500) || key_block) && (lang_cur_old=lang) && (A_Cursor=cursor_type)
-        Goto Indicator
+    If ((A_TickCount-cursor_time<300) || key_block) && (lang_cur_old=lang) && (A_Cursor=cursor_type)
+        Goto CheckRules
     flag_w:=large_flag ? flag_width*1.25 : flag_width, flag_h:=large_flag ? flag_height*1.25 : flag_height, csize:=cursor_size
     If text_cursor && (A_Cursor="IBeam") && FileExist("cursors\cursor.png") {
         try {
@@ -2139,7 +2142,7 @@ Cursors:
             DllCall("SetSystemCursor", Uint, CursorHandle, Int, 32513)
             Gdip_DisposeImage(pCursor)
             Gdip_DeleteGraphics(С)
-            cursor_type:="IBeam", reset_cursor:=0, cursor_time:=A_TickCount, lang_cur_old:=lang
+            cursor_type:="IBeam", cursor_time:=A_TickCount, lang_cur_old:=lang
         }
     }
     If arrow_cursor && (A_Cursor="Arrow") && !WinActive("ahk_class ConsoleWindowClass") && FileExist("cursors\arrow.png") {
@@ -2164,11 +2167,11 @@ Cursors:
             DllCall("SetSystemCursor", Uint, ArrowHandle, Int, 32512)
             Gdip_DisposeImage(pArrow)
             Gdip_DeleteGraphics(A)
-            cursor_type:="Arrow", reset_cursor:=0, cursor_time:=A_TickCount, lang_cur_old:=lang
+            cursor_type:="Arrow", cursor_time:=A_TickCount, lang_cur_old:=lang
         }
     }
 
-Indicator:
+CheckRules:
     If ((win_curr:=WinExist("A"))!=win_last) {
         WinGet pn, ProcessName, ahk_id %win_curr%
         WinGetClass cl, ahk_id %win_curr%
@@ -2190,31 +2193,40 @@ Indicator:
         Gui 11:Destroy
         Return
     }
+    If WinExist("ahk_id" hwnd5)
+        ind_state:=1
 
-    If ((ind_state=1) || (indicator && ind_state!=2) || WinExist("ahk_id" hwnd5)) && !WinExist("ahk_class #32768") && !WinActive("ahk_class NotifyIconOverflowWindow") && !WinActive("ahk_class OpenShell.CMenuContainer") && !WinActive("ahk_pid" pid) {
+Indicator:
+    If ((ind_state=1) || (indicator && ind_state!=2) || WinExist("ahk_id" hwnd5)) && !WinExist("ahk_class #32768") && !WinActive("ahk_class NotifyIconOverflowWindow") && !WinActive("ahk_class OpenShell.CMenuContainer") {
         SysGet MWM, MonitorWorkArea, % monitor
+        SysGet MM, MonitorWorkArea, % monitor
         w_in:=width_in*MWMRight//100, h_in:=(file_aspect && !text_flags) ? w_in*hf//wf : w_in*3//4
         If window_snap && !WinExist("ahk_id" hwnd5) {
-            id_in:=WinExist("A")
             WinGetPos xpos, ypos, wpos, hpos, A
-            x_in:=xpos+dx_in*wpos/100-w_in*.8,
-            y_in:=ypos+dy_in*hpos/100-h_in*.8,
-            x_in:=(x_in<xpos) ? xpos : ((x_in>xpos+wpos-w_in) ? xpos+wpos-w_in : x_in),
-            y_in:=(y_in<ypos) ? ypos : ((y_in>ypos+hpos-w_in) ? ypos+hpos-w_in : y_in)
-            If (x_in+w_in/2<MWMLeft) || (x_in+w_in/2>MWMRight) || (y_in+h_in/2<MWMTop) || (y_in+h_in/2>MWMBottom) {
+            x_in:=xpos+dx_in*wpos/100-w_in//2-((dx_in>50) ? w_in*.1*MWMRight/wpos : 0),
+            y_in:=ypos+dy_in*hpos/100-h_in//2-((dy_in>50) ? h_in*.1*MWMBottom/hpos : 0)
+            x_in:=(x_in<xpos) ? xpos : x_in,
+            y_in:=(y_in<ypos) ? ypos : y_in
+            If (y_in>MWMBottom) && (y_in<MMBottom) {
                 Gui 11:Hide
-                Return          
+                Return
             }
             If (x_in!=x_in_old) || (y_in!=y_in_old) {
                 Gui 11:Hide
                 SetTimer IndicatorShow, -200
                 ind_hide:=1
             }
-            upd_snap:=((x_in!=x_in_old) && (y_in!=y_in_old)) ? 1 : 0
             x_in_old:=x_in, y_in_old:=y_in
         }
-        If !ind_hide && (upd || upd_snap || !WinExist("ahk_id" IndHwnd) || (lang && (lang!=lang_in_old)) || (num!=num_in_old) || (scr!=scr_in_old) || (caps!=caps_in_old) || (autocorrect!=autocorrect_in_old) || (single_lang!=single_lang_in_old)) {
-        IndReset:
+        Else {
+            x_in:=dx_in*MWMRight//100-w_in//2, y_in:=dy_in*MWMBottom//100-h_in//2
+            monitor:=CheckMonitorPos(x_in+w_in//2, y_in+h_in//2)
+            If !monitor
+                dx_in:=50, dy_in:=97      
+        }
+        If !(x_in && y_in)
+            Return
+        If !ind_hide && (upd || !WinExist("ahk_id" IndHwnd) || (lang && (lang!=lang_in_old)) || (num!=num_in_old) || (scr!=scr_in_old) || (caps!=caps_in_old) || (autocorrect!=autocorrect_in_old) || (single_lang!=single_lang_in_old)) {
             mn:=(!no_border && !text_flags) ? ((w_in>60) ? 2 : 1) : 0 ; Величина полей
             pBitmap:=Gdip_CreateBitmap(w_in, w_in)
             I:=Gdip_GraphicsFromImage(pBitmap)
@@ -2223,7 +2235,7 @@ Indicator:
             If mn && !text_flags && FileExist(lang_array[clang, 3])
                 Gdip_FillRectangle(I ,Brush, 0, w_in-h_in, w_in, h_in)
             Gdip_DrawImage(I, pFlag, mn, w_in-h_in+mn, w_in-mn*2, h_in-mn*2, 0, 0, wf, hf)
-            If numlock_icon_in &&((num && !numlock_on) || (!num && numlock_on)){
+            If numlock_icon_in &&((num && !numlock_on) || (!num && numlock_on)) {
                 pNumLock_in:=(scrolllock_icon_in && scrolllock) ? pNumLock : pNumScroll
                 Gdip_DrawImage(I, pNumLock_in, 0, 0, w_in, w_in)
             }
@@ -2238,17 +2250,8 @@ Indicator:
             Gdip_DeleteGraphics(I)
             Gui 11:Default
             GuiControl,, %IndID%, *w%w_in% *h-1 hbitmap:*%IndicatorHandle%
-            If !window_snap || WinExist("ahk_id" hwnd5) {
-                x_in:=dx_in*MWMRight//100-w_in//2, y_in:=dy_in*MWMBottom//100-h_in//2
-                monitor:=CheckMonitorPos(x_in+w_in//2, y_in+h_in//2)
-                If !monitor {
-                    dx_in:=50, dy_in:=97
-                    Goto IndReset
-                }
-            }
             Gui 11:Show, x%x_in% y%y_in% NA
             WinSet Top,, ahk_id %IndHwnd%
-            Gui 11:Default
             If autocorrect && !no_indicate {
                 au_h1:=Round(w_in/3), AinHandle:=single_lang ? SingleLangHandle : AutocorrectHandle
                 GuiControl,, % IndAutocorrectID, *w%au_h1% *h%au_h1% hbitmap:*%AinHandle%
@@ -2262,14 +2265,14 @@ Indicator:
                 GuiControl Move, % IndCapsID, % "x" w_in//5 "y" w_in-h_in+w_in//5
                 GuiControl Show, % IndCapsID
             }
-            If !WinExist("ahk_id" IndHwnd)
-                Gosub IndicatorGui
             Else
                 GuiControl Hide, % IndCapsID
+            If !WinExist("ahk_id" IndHwnd)
+                Gosub IndicatorGui
             lang_in_old:=lang, width_in_old:=width_in, caps_in_old:=caps, num_in_old:=num, scr_in_old:=scr, upd:=0, autocorrect_in_old:=autocorrect, single_lang_in_old:=single_lang
         }
     }
-    Else
+    Else If !WinExist("ahk_id" hwnd5)
         Gui 11:Hide
     Return
 
@@ -2301,33 +2304,30 @@ GetBrightness(c) {
 }
 
 CursorOff:
-    cursor_hide:=reset_cursor:=1
+    cursor_hide:=1
     Return
 
 Flag:
     WinGetClass cl, A
     If cl not in Shell_TrayWnd
         lastwin:=WinExist("A")
-    If lastwin && (lastwin!=lastwin_old) && !WinActive("ahk_exe" Hwnd3) {
+    If lastwin && (lastwin!=lastwin_old) && !WinActive("ahk_id" Hwnd3) && !WinActive("ahk_id" Hwnd5) {
         ih.Stop(), stop:="NewWindow", RestoreCursors()
         If on_new_window {
-            cursor_hide:=reset_cursor:=0
+            cursor_hide:=0
             SetTimer CursorOff, % -1000*cursor_show
         }
         SetTimer Flag, Off
         SetTimer TrayIcon, Off
         Gui Destroy
         Gui 11:Destroy
-        lang_old:=lang_in_old:=lang_fl_old:=text_convert:=manual_convert:="",
+        lang_old:=lang_in_old:=lang_fl_old:=text_convert:=manual_convert:="", x_in_old:=y_in_old:=0, upd:=1
         bs_count:=deadkey_count:=0, out:=[]
-        Sleep 100
+        Sleep 50
         SetTimer TrayIcon, On
         SetTimer Flag, On
     }
-    GetCaretLocation(_x, _y), x:=_x+DX, y:=_y+DY
-    If wheel && ((_x!=x_wheel) || (_y!=y_wheel))
-        wheel:=0
-    If !(il_fl:=InputLayout()) {
+    If !(il_fl:=lang) {
         Gui Hide
         Return
     }
@@ -2337,6 +2337,10 @@ Flag:
             Break
         }
     }
+    GetCaretLocation(_x, _y), x:=_x+DX, y:=_y+DY
+    If wheel && ((_x!=x_wheel) || (_y!=y_wheel))
+        wheel:=0
+        
     If ((flag_state=1) || (flag && flag_state!=2)) && _x && _y && !wheel && !IsFullScreen() && !WinExist("ahk_class #32768") {
         If ((il_fl_old!=il_fl) || (width!=width_old) || !WinExist("ahk_id" FlagHwnd)) {
             fl_h:=(file_aspect && !text_flags) ? width*hf//wf : width*3//4,
@@ -2828,7 +2832,7 @@ IndicatorSettings:
 StatusBar:
     Gui 5:Default
     SB_SetParts(94, 84)
-    SB_SetText("`tX " Format("{:3.2f}", dx_in) " %  Y " Format("{:3.2f}", dy_in) " %`t", 1, 2)
+    SB_SetText("`tX " dx_in " %  Y " dy_in " %`t", 1, 2)
     SB_SetText("`tШирина " width_in " %`t", 2, 2)
     SB_SetText("`tПрозр-ть " 100-transp_in " %`t", 3, 2)
     Return
@@ -2867,6 +2871,7 @@ Esc::Goto 5GuiClose
 #If WinExist("ahk_id" hwnd5)
 Right::
     Critical
+    SetFormat float, 0.2
     While GetKeyState("LButton", "P") || GetKeyState("Right", "P") {
         dx_in:=((dx_in<99.5) || (monitors>1)) ? dx_in+((A_Index>3) ? 0.3 : 0.1) : dx_in, upd:=1
         Gosub Indicator
@@ -2877,6 +2882,7 @@ Return
 
 Left::
     Critical
+    SetFormat float, 0.2
     While GetKeyState("LButton", "P") || GetKeyState("Left", "P") {
         dx_in:=((dx_in>0.5) || (monitors>1)) ? dx_in-((A_Index>3) ? 0.3 : 0.1) : dx_in, upd:=1
         Gosub Indicator
@@ -2887,8 +2893,9 @@ Left::
 
 Up::
     Critical
+    SetFormat float, 0.2
     While GetKeyState("LButton", "P") || GetKeyState("Up", "P") {
-        dy_in:=((dy_in+10>0)  || (monitors>1)) ? dy_in-((A_Index>3) ? 0.3 : 0.1) : dy_in, upd:=1
+        dy_in:=((dy_in>.5)  || (monitors>1)) ? dy_in-((A_Index>3) ? 0.3 : 0.1) : dy_in, upd:=1
         Gosub Indicator
         Gosub StatusBar
         Sleep % (A_Index>3) ? 20 : 150
@@ -2897,6 +2904,7 @@ Up::
 
 Down::
     Critical
+    SetFormat float, 0.2
     While GetKeyState("LButton", "P") || GetKeyState("Down", "P") {
         dy_in:=((dy_in<98.5) || (monitors>1)) ? dy_in+((A_Index>3) ? 0.3 : 0.1) : dy_in, upd:=1
         Gosub Indicator
@@ -2906,6 +2914,7 @@ Down::
     Return
 
 ^Right::
+    SetFormat float, 0.2
     While GetKeyState("LButton", "P") || GetKeyState("Right", "P") {
         If (width_in<10)
             width_in+=0.1, upd:=1
@@ -2915,6 +2924,7 @@ Down::
     Return
 
 ^Left::
+    SetFormat float, 0.2
     While GetKeyState("LButton", "P") || GetKeyState("Left", "P") {
         If (width_in>1)
             width_in-=0.1, upd:=1
@@ -2934,7 +2944,7 @@ Down::
     Goto StatusBar
 
 Space::
-    width_in:=2, dx_in:=50, dy_in:=97.4, transp_in:=90, upd:=1
+    width_in:=2, dx_in:=50, dy_in:=1.0, transp_in:=90, upd:=1
     Goto StatusBar
 #If
 
@@ -3110,7 +3120,7 @@ Properties:
 RestoreCursors:
     RestoreCursors()
     Sleep 50
-    lang_cursor_old:="", reset_cursor:=0
+    lang_cursor_old:=""
     Return
 
 EditClass:
@@ -3185,7 +3195,7 @@ Def:
     Gui 9:Destroy
     Gui 9:+AlwaysOnTop +ToolWindow +LastFound +HwndGui9
     Gui 9:Font, s9
-    Gui 9:Margin, 8, 4
+    Gui 9:Margin, 8, 6
     Gui 9:Color, 6DA0B8
     
     Gui 9:Add, GroupBox, x8 w312 h48, Интервал выделения по словам
@@ -3219,7 +3229,7 @@ Def:
     GuiControl,, ctrl_ctrl, % ctrl_ctrl
     GuiControl,, shift_shift, % shift_shift
        
-    Gui 9:Add, Button, x30 y+22 w60 section g9GuiClose, Cancel
+    Gui 9:Add, Button, x30 w60 section g9GuiClose, Cancel
     Gui 9:Add, Button, x+4 ys w140 hp gDefaults, По умолчанию
     Gui 9:Add, Button, x+4 ys w60 hp g9OK, OK
     Gui 9:Show,, Настройки клавиатуры
@@ -3262,7 +3272,7 @@ Defaults:
     Gui 9:Destroy
     Return
 
-#If WinActive("ahk_id" Gui9 )
+#If WinActive("ahk_id" Gui9)
 Esc::Goto 9GuiClose
 
 WheelUp::
