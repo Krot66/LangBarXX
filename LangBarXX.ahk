@@ -21,7 +21,7 @@ Process Priority,, A
 #Include <Gdip_All>
 #Include %A_ScriptDir%\Lib\_icons.ahk
 
-version:="1.8.2"
+version:="1.8.4"
 
 /*
 Использованы:
@@ -36,8 +36,8 @@ GetCaret - plankoe
 
 
 ;@Ahk2Exe-SetProductName LangBar++
-;@Ahk2Exe-SetProductVersion 1.8.2
-;@Ahk2Exe-SetFileVersion 1.8.2
+;@Ahk2Exe-SetProductVersion 1.8.4
+;@Ahk2Exe-SetFileVersion 1.8.4
 ;@Ahk2Exe-SetDescription https://github.com/Krot66/LangBarXX
 
 ;@Ahk2Exe-SetMainIcon LangBarXX.ico
@@ -45,7 +45,7 @@ GetCaret - plankoe
 
 start:=A_TickCount
 OnExit Exit
-pid:=DllCall("GetCurrentProcessId")
+pid:=DllCall("GetCurrentProcessId") 
 Process Exist, LangBarXX.exe
 lb:=ErrorLevel
 Process Exist, LangBarXX64.exe
@@ -665,7 +665,7 @@ KeyArray(hook, vk, sc) {
     RegExMatch(ih_old, "\S+\s?$", tconv), str_length:=StrLen(tconv),
     t0:=RegExReplace(text, "\s$"), t0_alt:=RegExReplace(t_alt, "\s$")
 
-    If (StrLen(text)>2) && (SubStr(text, 1, 1)=SubStr(text, 2, 1)) && (SubStr(text, 1, 1)=SubStr(text, 3, 1)) || (StrLen(text)>10) {
+    If (StrLen(text)>2) && (SubStr(text, 1, 1)=SubStr(text, 2, 1)) && (SubStr(text, 1, 1)=SubStr(text, 3, 1)) || (StrLen(text)>12) {
         bs_ignore:=1
         Return
     }
@@ -737,8 +737,8 @@ KeyArray(hook, vk, sc) {
             list2:="(" RegExReplace(list2, ", ?$") ")"
         }
         If tu
-            t0:=Format("{:L}", t0), t1:=Format("{:L}", t1), t0_alt:=Format("{:L}", t0_alt), t2:=Format("{:L}", t2), list1:=Format("{:L}", list1), list2:=Format("{:L}", list2)
-        Tooltip % LangCode(il) "   " t0 "   " t1 "  " list1 "`n" LangCode(alt_lang) "   " t0_alt "   " t2  "  " list2 , % A_ScreenWidth//2-200, 0, 10
+            t0:=Format("{:L}", t0), t1:=Format("{:L}", t1), t0_alt:=Format("{:L}", t0_alt), t2:=Format("{:L}", t2), list1:=Format("{:L}", list1), list2:=Format("{:L}", list2)        GetCaretLocation(_x, _y)
+        Tooltip % LangCode(il) "   " t0 "   " t1 "  " list1 "`n" LangCode(alt_lang) "   " t0_alt "   " t2  "  " list2 , % A_ScreenWidth//2-60, 30, 10
         ttip1:=""
     }
     key_time+=A_TickCount-tstart, nkeys+=1, minl:=Min(StrLen(t0), StrLen(t0_alt))
@@ -783,6 +783,7 @@ ResetHook:
     If !(ih.VisibleText && ih.InProgress)
         hook_opt:="I V", ih.Stop()
     SetTimer TrayIcon, On
+    Sleep 100
     SetTimer Flag, On
     Return
 
@@ -1794,6 +1795,7 @@ LangBar:
     SetTimer LangNote, -50
     ih.Stop()
     SetTimer TrayIcon, On
+    Sleep 100
     SetTimer Flag, On
     Return
 
@@ -1964,6 +1966,7 @@ CheckMonitorPos(x, y) {
         If (x>=waLeft) && (x<=waRight) && (y>=waTop) && (y<=waBottom)
             Return % A_Index
     }
+    Return
 }
 
 LangNote:
@@ -2065,7 +2068,7 @@ TrayIcon:
         last_lang_win:=WinExist("A")
     lang:=lang ? lang : lang_old
     If upd
-        Goto Indicator
+        Goto CheckRules
     Loop % lang_array.Length() {
         If (lang=lang_array[A_Index, 1]) {
             pFlag:=lang_array[A_Index, 4], clang:=A_Index
@@ -2195,21 +2198,20 @@ CheckRules:
     }
     If WinExist("ahk_id" hwnd5)
         ind_state:=1
-
+    
 Indicator:
-    If ((ind_state=1) || (indicator && ind_state!=2) || WinExist("ahk_id" hwnd5)) && !WinExist("ahk_class #32768") && !WinActive("ahk_class NotifyIconOverflowWindow") && !WinActive("ahk_class OpenShell.CMenuContainer") {
-        SysGet MWM, MonitorWorkArea, % monitor
-        SysGet MM, MonitorWorkArea, % monitor
-        w_in:=width_in*MWMRight//100, h_in:=(file_aspect && !text_flags) ? w_in*hf//wf : w_in*3//4
+    If ((ind_state=1) || (indicator && (ind_state!=2)) || WinExist("ahk_id" hwnd5)) && !WinExist("ahk_class #32768") && !WinActive("ahk_class NotifyIconOverflowWindow") && !WinActive("ahk_class OpenShell.CMenuContainer") {
         If window_snap && !WinExist("ahk_id" hwnd5) {
             WinGetPos xpos, ypos, wpos, hpos, A
-            x_in:=xpos+dx_in*wpos/100-w_in//2-((dx_in>50) ? w_in*.1*MWMRight/wpos : 0),
-            y_in:=ypos+dy_in*hpos/100-h_in//2-((dy_in>50) ? h_in*.1*MWMBottom/hpos : 0)
-            x_in:=(x_in<xpos) ? xpos : x_in,
-            y_in:=(y_in<ypos) ? ypos : y_in
-            If (y_in>MWMBottom) && (y_in<MMBottom) {
-                Gui 11:Hide
-                Return
+            monitor:=CheckMonitorPos(xpos+wpos/2, ypos+hpos/2)
+            SysGet MWM, MonitorWorkArea, % monitor
+            w_in:=width_in*MWMRight//100, h_in:=(file_aspect && !text_flags) ? w_in*hf//wf : w_in*3//4
+            x_in:=xpos+dx_in*wpos/100-w_in//2-((dx_in>50) ? w_in*.15*MWMRight/wpos : 0),
+            y_in:=ypos+dy_in*hpos/100-h_in//2-((dy_in>50) ? h_in*.15*MWMBottom/hpos : 0)
+            WinGet, win_st, MinMax, A
+            If (win_st!=1) {
+                x_in:=(x_in<xpos) ? xpos : x_in,
+                y_in:=(y_in<ypos) ? ypos-4 : y_in
             }
             If (x_in!=x_in_old) || (y_in!=y_in_old) {
                 Gui 11:Hide
@@ -2219,13 +2221,13 @@ Indicator:
             x_in_old:=x_in, y_in_old:=y_in
         }
         Else {
+            SysGet MWM, MonitorWorkArea, % monitor
+            w_in:=width_in*MWMRight//100, h_in:=(file_aspect && !text_flags) ? w_in*hf//wf : w_in*3//4
             x_in:=dx_in*MWMRight//100-w_in//2, y_in:=dy_in*MWMBottom//100-h_in//2
             monitor:=CheckMonitorPos(x_in+w_in//2, y_in+h_in//2)
             If !monitor
-                dx_in:=50, dy_in:=97      
+                dx_in:=50, dy_in:=0.5      
         }
-        If !(x_in && y_in)
-            Return
         If !ind_hide && (upd || !WinExist("ahk_id" IndHwnd) || (lang && (lang!=lang_in_old)) || (num!=num_in_old) || (scr!=scr_in_old) || (caps!=caps_in_old) || (autocorrect!=autocorrect_in_old) || (single_lang!=single_lang_in_old)) {
             mn:=(!no_border && !text_flags) ? ((w_in>60) ? 2 : 1) : 0 ; Величина полей
             pBitmap:=Gdip_CreateBitmap(w_in, w_in)
@@ -2250,7 +2252,7 @@ Indicator:
             Gdip_DeleteGraphics(I)
             Gui 11:Default
             GuiControl,, %IndID%, *w%w_in% *h-1 hbitmap:*%IndicatorHandle%
-            Gui 11:Show, x%x_in% y%y_in% NA
+            try Gui 11:Show, x%x_in% y%y_in% NA
             WinSet Top,, ahk_id %IndHwnd%
             If autocorrect && !no_indicate {
                 au_h1:=Round(w_in/3), AinHandle:=single_lang ? SingleLangHandle : AutocorrectHandle
@@ -2287,7 +2289,7 @@ Backslash(t) {
 }
 
 IndicatorShow:
-    ind_hide:=0, upd:=1
+    ind_hide:=0
     Return
 
 IsFullScreen(win="A") {
@@ -2325,9 +2327,10 @@ Flag:
         bs_count:=deadkey_count:=0, out:=[]
         Sleep 50
         SetTimer TrayIcon, On
+        Sleep 100
         SetTimer Flag, On
     }
-    If !(il_fl:=lang) {
+    If !(il_fl:=InputLayout()) {
         Gui Hide
         Return
     }
@@ -2635,6 +2638,7 @@ FolderSize(folder) {
     3apply:=1
     Gui 3:Submit
     SetTimer TrayIcon, On
+    Sleep 100
     SetTimer Flag, On
     Goto LayoutsAndFlags
 
@@ -2839,10 +2843,6 @@ StatusBar:
 
 5GuiClose:
     Gui 5:Destroy
-    If (dx_in>0) && (dx_in<A_ScreenWidth) && (dy_in>0) && (dy_in<A_ScreenHeight)
-        dx_in_1:=dx_in, dy_in_1:=dy_in
-    Else
-        dx_in_2:=dx_in, dy_in_2:=dy_in
     Gosub Settings
     Return
 
@@ -2895,7 +2895,7 @@ Up::
     Critical
     SetFormat float, 0.2
     While GetKeyState("LButton", "P") || GetKeyState("Up", "P") {
-        dy_in:=((dy_in>.5)  || (monitors>1)) ? dy_in-((A_Index>3) ? 0.3 : 0.1) : dy_in, upd:=1
+        dy_in:=((dy_in>0) || (monitors>1)) ? dy_in-((A_Index>3) ? 0.3 : 0.1) : dy_in, upd:=1
         Gosub Indicator
         Gosub StatusBar
         Sleep % (A_Index>3) ? 20 : 150
@@ -3967,6 +3967,7 @@ LoadPreview:
         }
     }
 Final:
+    bh.Stop()
     If replace_sound && FileExist("sounds\autoreplace.wav")
         SetTimer ReplaceSound, -50
     If (scrolllock_show=1) || ((scrolllock_show=-1) && GetKeyState("ScrollLock", "T")) {
